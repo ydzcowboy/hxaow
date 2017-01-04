@@ -203,17 +203,17 @@ public class Main {
         LOG.info("");
         LOG.info("hxaow [options] command");
         LOG.info("");
-        LOG.info("By default, the configuration will be read from conf/flyway.conf.");
+        LOG.info("By default, the configuration will be read from conf/hxaow.conf.");
         LOG.info("Options passed from the command-line override the configuration.");
         LOG.info("");
         LOG.info("Commands");
         LOG.info("--------");
-        LOG.info("migrate  : Migrates the database");
+        LOG.info("migrate  : 进行数据库升级");
         LOG.info("clean    : 清空数据库，风险较大，暂停使用");
-        LOG.info("info     : Prints the information about applied, current and pending migrations");
-        LOG.info("validate : Validates the applied migrations against the ones on the classpath");
-        LOG.info("baseline : Baselines an existing database at the baselineVersion");
-        LOG.info("repair   : Repairs the metadata table");
+        LOG.info("info     : 查看升级信息");
+        LOG.info("validate : 校验升级版本依赖");
+        LOG.info("baseline : 基于基线版本形成基线迁移");
+        LOG.info("repair   : 修复升级脚本日志信息");
         LOG.info("");
         LOG.info("Options (Format: -key=value)");
         LOG.info("-------");
@@ -351,9 +351,9 @@ public class Main {
     static void loadConfiguration(Properties properties, String[] args) {
         String encoding = determineConfigurationFileEncoding(args);
 
-        loadConfigurationFile(properties, getInstallationDir() + "/conf/flyway.conf", encoding, false);
-        loadConfigurationFile(properties, System.getProperty("user.home") + "/flyway.conf", encoding, false);
-        loadConfigurationFile(properties, "flyway.conf", encoding, false);
+        loadConfigurationFile(properties, getInstallationDir() + "/conf/hxaow.conf", encoding, false);
+        loadConfigurationFile(properties, System.getProperty("user.home") + "/hxaow.conf", encoding, false);
+        loadConfigurationFile(properties, "hxaow.conf", encoding, false);
 
         String configFile = determineConfigurationFileArgument(args);
         if (configFile != null) {
