@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project>
+    <!--升级版本信息，jar包信息-->
+    <name>PM</name>
+    <!-- 子系统ID -->
+    <sysId>102</sysId>
+    <description>项目库管理系统</description>
+    <version>2016.07.30.00(build20161216)</version>
+    <!--脚本升级版本日志表,记录脚本依赖关系-->
+    <versionTable>gap_version_pm</versionTable>
+    <!--基线版本-->
+    <baseversion>0</baseversion>
+    <!--需要清除的文件-->
+    <cleanup>
+        <string>js/budget.js</string>
+        <string>WEB-INF/lib/grp.budget.xxx.jar</string>
+        <string>WEB-INF/lib/grp.budget.xxx.jar</string>
+    </cleanup>
+    <!-- 升级文件夹路径指定 -->
+    <serverPath>服务器端</serverPath>
+    <clientPath>客户端</clientPath>
+    <databasePath>脚本</databasePath>
+    <!-- 含个性化脚本的地区，个性化脚本，需按此创建文件夹 -->
+    <specialRegion>
+    	<string>0-产品化</string>
+    	<string>1-太仓</string>
+    	<string>2-苏州市局</string>
+    	<string>3-深圳市局</string>
+    </specialRegion>
+
+</Project>

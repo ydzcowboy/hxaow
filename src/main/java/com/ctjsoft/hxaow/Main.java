@@ -27,6 +27,9 @@ import org.flywaydb.core.internal.util.logging.LogFactory;
 import org.flywaydb.core.internal.util.logging.console.ConsoleLog.Level;
 import org.flywaydb.core.internal.util.logging.console.ConsoleLogCreator;
 
+import com.ctjsoft.hxaow.bo.Project;
+import com.ctjsoft.hxaow.bo.VerInfo;
+
 
 /**
  * Main class and central entry point of the hxaow command-line tool.
@@ -76,19 +79,79 @@ public class Main {
             Properties properties = new Properties();
             initializeDefaults(properties);
             loadConfiguration(properties, args);
-            overrideConfiguration(properties, args);
+            overrideConfiguration(properties, args);        
             promptForCredentialsIfMissing(properties);
             dumpConfiguration(properties);
-
             loadJdbcDrivers();
             loadJavaMigrationsFromJarDirs(properties);
-
-            Flyway flyway = new Flyway();
-            filterProperties(properties);
-            flyway.configure(properties);
-
-            for (String operation : operations) {
-                executeOperation(flyway, operation);
+            //获取工程XML 配置信息
+            List<Project> projectList = loadProjectConfig(properties);
+            Project suitPro = null;
+            List<Project> updateList = new ArrayList<Project>();
+            for(Project p : projectList){
+            	if(p.isSuit()){
+            		if(suitPro == null){
+            			suitPro = p;
+            		}else{
+            			throw new RuntimeException("本次升级发现两个套件：["+suitPro.getName()+suitPro.getDescription()+","+p.getName()+p.getDescription()+"]");
+            		}
+            	}else{
+            		updateList.add(p);
+            	}
+            }
+            //需要升级的版本
+            List<Project> verList = new ArrayList<Project>();
+            if(suitPro == null && updateList.size() > 1){
+            	throw new RuntimeException("本次升级，非套件版本中发现多个升级版本。");
+            }
+            //检查套件合法性
+            if(suitPro != null){
+            	List<VerInfo> verInfoList = suitPro.getSuit();
+            	if(verInfoList == null || verInfoList.isEmpty()){
+            		throw new RuntimeException("套件["+suitPro.getName()+"]工程文件，未配置升级版本信息。");
+            	}
+            	for(VerInfo v : verInfoList){
+            		boolean isExist = false;
+            		for(Project p : updateList){
+            			if(v.getName().equals(p.getName()) && v.getVersion().equals(p.getVersion())){
+            				verList.add(p);
+            				isExist = true;
+            				break;
+            			}
+            		}
+            		if(!isExist){
+            			throw new RuntimeException("套件["+suitPro.getName()+"]指定升级版本["+v.getName()+v.getVersion()+"],在套件工程目录下未找到。");
+            		}
+            	}
+            	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"升级开始============================");
+            }else{
+            	verList.add(updateList.get(0));
+            }
+            //执行升级
+            for(Project p : verList){
+            	LOG.info("========================版本"+p.getName()+p.getVersion()+"升级开始============================");
+            	//TODO 检查基线版本
+            	String verTable = p.getVersionTable();
+            	if(verTable == null || verTable.length() ==0){
+            		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定versionTable,请检查。");
+            	}
+            	String databasePath = p.getDatabasePath();
+            	if(databasePath == null ||databasePath.length() ==0){
+            		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定databasePath,请检查。");
+            	}   	
+            	properties.put("flyway.table", verTable);
+            	properties.put("flyway.locations", "classpath:db.migration,filesystem:"+p.getInstall_path()+"/"+databasePath+"/update");
+                Flyway flyway = new Flyway();
+                filterProperties(properties);
+                flyway.configure(properties);
+                
+                for (String operation : operations) {
+                    executeOperation(flyway, operation);
+                }
+                LOG.info("========================版本"+p.getName()+p.getVersion()+"升级成功============================");
+            }
+            if(suitPro != null){
+            	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"升级成功============================");
             }
         } catch (Exception e) {
             if (logLevel == Level.DEBUG) {
@@ -260,6 +323,25 @@ public class Main {
         LOG.info("");
         LOG.info("More info at https://flywaydb.org/documentation/commandline");
     }
+    /**
+     * 加载升级工程文件
+     * @throws IOException
+     */
+    private static List<Project> loadProjectConfig(Properties properties) throws IOException {
+    	String updateDir = (String)properties.getProperty("update_dir");
+    	File path = null;
+    	if(updateDir!= null && !updateDir.isEmpty()){
+    		path = new File(getInstallationDir(), "update/"+updateDir);
+    	}else{
+    		path = new File(getInstallationDir(), "update");
+    	}
+        List<Project> projectList = Tools.LoadProjectConfig(path);
+        if(projectList.isEmpty()){
+            throw new RuntimeException("在升级目录：["+path.getAbsolutePath() +"]及子目录下，未找到工程文件project.xml,请检查。");
+        }
+        return projectList;
+    }
+
 
     /**
      * Loads all the driver jars contained in the drivers folder. (For Jdbc drivers)
@@ -342,12 +424,10 @@ public class Main {
     }
 
     /**
-     * Loads the configuration from the various possible locations.
-     *
-     * @param properties The properties object to load to configuration into.
-     * @param args       The command-line arguments passed in.
+     * 加载配置文件
+     * @param properties
+     * @param args
      */
-    /* private -> for testing */
     static void loadConfiguration(Properties properties, String[] args) {
         String encoding = determineConfigurationFileEncoding(args);
 
@@ -411,6 +491,10 @@ public class Main {
             // URL is not set. We are doomed for failure anyway.
             return;
         }
+        
+//        if(!properties.containsKey("update_dir")){
+//        	properties.put("update_dir", console.readLine("请输入update文件加下的升级版本："));
+//        }
 
         if (!properties.containsKey("flyway.user")) {
             properties.put("flyway.user", console.readLine("Database user: "));
@@ -419,6 +503,15 @@ public class Main {
         if (!properties.containsKey("flyway.password")) {
             char[] password = console.readPassword("Database password: ");
             properties.put("flyway.password", password == null ? "" : String.valueOf(password));
+        }
+        
+        if (!properties.containsKey("domain.path")) {
+            properties.put("domain.path", console.readLine("升级服务domain路径,如：D:\\bea103\\user_projects\\domains\\domain_8001\\servers:"));
+        }
+        
+        if (!properties.containsKey("flyway.region")) {
+        	//TODO 打印个性化地区列表
+            properties.put("flyway.region", console.readLine("请选择地区:"));
         }
     }
 
@@ -478,18 +571,23 @@ public class Main {
     }
 
     /**
-     * Overrides the configuration from the config file with the properties passed in directly from the command-line.
-     *
-     * @param properties The properties to override.
-     * @param args       The command-line arguments that were passed in.
+     * 使用命令参数重置参数
+     * @param properties
+     * @param args
      */
-    /* private -> for testing*/
     static void overrideConfiguration(Properties properties, String[] args) {
         for (String arg : args) {
             if (isPropertyArgument(arg)) {
                 properties.put("flyway." + getArgumentProperty(arg), getArgumentValue(arg));
             }
         }
+    }
+    /**
+     * 恢复项目XML中信息
+     * @param properties
+     */
+    static void overrideConfigByXMl(Properties properties){
+    	
     }
 
     /**
@@ -550,4 +648,5 @@ public class Main {
 
         return operations;
     }
+   
 }

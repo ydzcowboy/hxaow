@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project>
+    <!--升级版本信息，jar包信息-->
+    <name>CZYTH</name>
+    <sysId>103</sysId>
+    <description>财政一体化管理系统套件</description>
+    <version>2016.07.30.00(build20161216)</version>
+    <!--基线版本-->
+    <baseversion>0</baseversion>
+
+    <!--需要升级的套件工程，按顺序执行-->
+    <suit>
+        <VerInfo>
+            <name>BUDGETFRAMEWORK</name>
+            <version>2016.07.30.00(build20161216)</version>
+        </VerInfo>
+        <VerInfo>
+            <name>PM</name>
+            <version>2016.07.30.00(build20161216)</version>
+        </VerInfo>
+    </suit>
+</Project>
