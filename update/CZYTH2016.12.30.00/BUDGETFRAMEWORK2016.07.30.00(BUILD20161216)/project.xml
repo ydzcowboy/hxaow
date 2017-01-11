@@ -12,11 +12,10 @@
     <baseversion>0</baseversion>
     <!--工程部署名 -->
     <contextName>realware</contextName>
-    <!--需要清除的文件-->
+    <!--需要清除的文件,仅支持文件名的统配符*-->
     <cleanup>
         <string>js/budget.js</string>
-        <string>WEB-INF/lib/grp.budget*.jar</string>
-        <string>WEB-INF/lib/grp.budget.xxx.jar</string>
+        <string>WEB-INF/lib/grp.budget.invest*.jar</string>
     </cleanup>
     <!-- 升级文件夹路径指定 -->
     <serverPath>服务器端</serverPath>

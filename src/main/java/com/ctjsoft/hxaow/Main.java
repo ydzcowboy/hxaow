@@ -173,8 +173,10 @@ public class Main {
                     //升级版本
                     String jdkVer = properties.getProperty("flyway.jdk") == null ? "jdk1.6" : properties.getProperty("flyway.jdk");
                 	for(String d : domainDirs){
-                		//清理文件
-
+                		//执行清理文件
+                		if(p.getCleanup() != null && p.getCleanup().size() > 0){
+                			cleanUpFile(p,d);
+                		}
                 		//后台服务包
                 		if(p.getServerPath() != null && !p.getServerPath().equals("")){
                 			Tools.copyFileFromDir(d, p.getInstall_path()+"/"+p.getServerPath()+"/"+jdkVer);
@@ -206,6 +208,59 @@ public class Main {
             }
             System.exit(1);
         }
+    }
+    /**
+     * 執行文件清理
+     * @param p  工程配置
+     * @param d  发布路径 
+     */
+    private static void cleanUpFile(Project p,String d){
+		for(String cl : p.getCleanup()){
+			String abPath = d+"/"+p.getContextName()+"/"+cl;
+			File f = new File(abPath);
+			if(f.isFile() || f.isDirectory()){
+				f.delete();
+				LOG.info("清理文件："+f.getAbsolutePath());
+			}else{
+				if(cl.indexOf("*")>-1){//判断是否含统配符
+					String[] clArr = abPath.split("/");
+					String parentPath = "";
+					String fileName = "";
+					for(int i = 0 ;i<clArr.length;i++){
+						if(i == clArr.length -1){
+							fileName = clArr[i];
+						}else{
+							parentPath += clArr[i]+"/";
+						}
+					}
+					File parentFile = new File(parentPath);
+					if(!parentFile.isDirectory()){
+						LOG.debug("未找到需要清理的文件："+parentPath);
+						continue;
+					}
+					String[] temp = fileName.split("\\*");
+					if(temp.length == 0){
+						parentFile.delete();
+						LOG.info("清理文件："+parentFile.getAbsolutePath());
+					}else if(temp.length == 2){
+						File[] childFile = parentFile.listFiles();
+						if(childFile.length > 0){
+							for(File cf : childFile){
+								if(cf.getName().startsWith(temp[0]) && cf.getName().endsWith(temp[1])){
+									cf.delete();
+									LOG.info("清理文件："+cf.getAbsolutePath());
+								}
+							}
+						}
+					}else{
+						LOG.error("通配符使用錯誤："+cl);
+					}
+				}else{
+					LOG.debug("未找到需要清理的文件："+d+"/"+p.getContextName()+"/"+cl);
+				}
+			}
+			
+		}
     }
 
     private static boolean isPrintVersionAndExit(String[] args) {

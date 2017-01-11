@@ -15,8 +15,7 @@
     <!--需要清除的文件以服务目录作为根目录-->
     <cleanup>
         <string>js/budget.js</string>
-        <string>WEB-INF/lib/grp.budget.xxx.jar</string>
-        <string>WEB-INF/lib/grp.budget.xxx.jar</string>
+        <string>WEB-INF/lib/grp.budget.pm*.jar</string>
     </cleanup>
     <!-- 升级文件夹路径指定 -->
     <serverPath>服务器端</serverPath>

@@ -139,7 +139,6 @@ public class Tools {
             File file = new File(filePath[i]);// 创建文件  
             if (file.isDirectory()) {// 判断是否是目录  
                 copyFileToDir(toDir + "/" + file.getName(), listFile(file));// 递归调用方法获得目录下的文件  
-                LOG.debug("复制文件 " + file);  
             } else {  
                 copyFileToDir(toDir, file, "");// 复制文件到指定目录  
             }  
@@ -160,11 +159,11 @@ public class Tools {
     public static void copyFile(File toFile, File fromFile) {// 复制文件  
         if (toFile.exists()) {// 判断目标目录中文件是否存在  
         	toFile.delete();
-        	LOG.debug("文件" + toFile.getAbsolutePath() + "被替换");  
+        	LOG.debug("文件:" + toFile.getAbsolutePath() + "被替换");  
         }
         createFile(toFile, true);// 创建文件  
         
-        LOG.info("复制文件" + fromFile.getAbsolutePath() + "到"  
+        LOG.info("复制文件:" + fromFile.getName() + "到"  
                 + toFile.getAbsolutePath());  
         try {  
             InputStream is = new FileInputStream(fromFile);// 创建文件输入流  
@@ -212,6 +211,6 @@ public class Tools {
                 }  
             }  
         }  
-    }
-    
+    }  
+      
 }
