@@ -127,6 +127,25 @@ public class Main {
             }else{
             	verList.add(updateList.get(0));
             }
+            //是否进行自动发布jar 包等文件
+            boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
+            String[] domainDirs = null;
+            if(autoDeploy){
+                //获取domain 目录，即工程发布根目录
+                String domainPath = properties.getProperty("domain.path");
+                if(domainPath != null && domainPath.length()>0){
+                	domainDirs = StringUtils.tokenizeToStringArray(domainPath, ";");
+                	for(String p : domainDirs){
+                		File f = new File(p);
+                		if(f == null || !f.isDirectory()){
+                			throw new RuntimeException("参数[domain.path]指定目录："+p+"不存在，请检查配置。");
+                		}
+                	}
+                }else{
+                	throw new RuntimeException("未指定 参数[domain.path],请检查配置，或改为手动发布。");
+                }               
+            }
+            
             //执行升级
             for(Project p : verList){
             	LOG.info("========================版本"+p.getName()+p.getVersion()+"升级开始============================");
@@ -147,6 +166,28 @@ public class Main {
                 
                 for (String operation : operations) {
                     executeOperation(flyway, operation);
+                }
+                LOG.info("版本["+p.getName()+p.getVersion()+"]===数据库升级完成.");
+                //客户端、服务端包升级
+                if(autoDeploy){
+                    //升级版本
+                    String jdkVer = properties.getProperty("flyway.jdk") == null ? "jdk1.6" : properties.getProperty("flyway.jdk");
+                	for(String d : domainDirs){
+                		//清理文件
+
+                		//后台服务包
+                		if(p.getServerPath() != null && !p.getServerPath().equals("")){
+                			Tools.copyFileFromDir(d, p.getInstall_path()+"/"+p.getServerPath()+"/"+jdkVer);
+                		}else{
+                			LOG.debug("发布工程服务端路径未指定，不进行服务端包发布");
+                		}
+                		//客户端DLL包
+                		if(p.getClientPath() != null && !p.getClientPath().equals("")){
+                			Tools.copyFileFromDir(d+"/"+p.getContextName()+"/update", p.getInstall_path()+"/"+p.getClientPath());
+                		}else{
+                			LOG.debug("发布工程客户端路径未指定，不进行客户端包发布");
+                		}
+                	}
                 }
                 LOG.info("========================版本"+p.getName()+p.getVersion()+"升级成功============================");
             }

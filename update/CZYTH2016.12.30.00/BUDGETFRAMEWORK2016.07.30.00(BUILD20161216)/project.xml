@@ -10,10 +10,12 @@
     <versionTable>gap_version_framework</versionTable>
     <!--基线版本-->
     <baseversion>0</baseversion>
+    <!--工程部署名 -->
+    <contextName>realware</contextName>
     <!--需要清除的文件-->
     <cleanup>
         <string>js/budget.js</string>
-        <string>WEB-INF/lib/grp.budget.xxx.jar</string>
+        <string>WEB-INF/lib/grp.budget*.jar</string>
         <string>WEB-INF/lib/grp.budget.xxx.jar</string>
     </cleanup>
     <!-- 升级文件夹路径指定 -->

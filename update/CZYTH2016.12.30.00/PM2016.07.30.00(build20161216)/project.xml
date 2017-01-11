@@ -10,7 +10,9 @@
     <versionTable>gap_version_pm</versionTable>
     <!--基线版本-->
     <baseversion>0</baseversion>
-    <!--需要清除的文件-->
+    <!--工程部署名 -->
+    <contextName>realware</contextName>
+    <!--需要清除的文件以服务目录作为根目录-->
     <cleanup>
         <string>js/budget.js</string>
         <string>WEB-INF/lib/grp.budget.xxx.jar</string>

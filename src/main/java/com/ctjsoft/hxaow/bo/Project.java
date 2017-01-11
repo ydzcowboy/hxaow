@@ -37,6 +37,17 @@ public class Project {
 	List<String> specialRegion;
 	//工程安装目录
 	String install_path = "";
+	//工程部署名
+	String contextName = "";
+	
+	public String getContextName() {
+		return contextName;
+	}
+
+	public void setContextName(String contextName) {
+		this.contextName = contextName;
+	}
+
 	public String getInstall_path() {
 		return install_path;
 	}
