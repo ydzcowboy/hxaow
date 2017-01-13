@@ -5,9 +5,7 @@
     <sysId>103</sysId>
     <description>财政一体化管理系统套件</description>
     <version>2016.07.30.00(build20161216)</version>
-    <!--基线版本,用于增量升级时，检测依赖，只有目前库里版本大于等于此基线版本，才可进行增量升级。为空表示不进行任何依赖-->
-    <baseversion></baseversion>
-
+    
     <!--需要升级的套件工程，按顺序执行-->
     <suit>
         <VerInfo>

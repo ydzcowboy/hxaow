@@ -65,7 +65,8 @@ public class Main {
      *
      * @param args The command-line arguments.
      */
-    public static void main(String[] args) {
+    @SuppressWarnings("unused")
+	public static void main(String[] args) {
         Level logLevel = getLogLevel(args);
         initLogging(logLevel);
 
@@ -91,115 +92,20 @@ public class Main {
             loadJavaMigrationsFromJarDirs(properties);
             //获取工程XML 配置信息
             List<Project> projectList = loadProjectConfig(properties);
-            Project suitPro = null;
+            //套件工程
             List<Project> updateList = new ArrayList<Project>();
-            for(Project p : projectList){
-            	if(p.isSuit()){
-            		if(suitPro == null){
-            			suitPro = p;
-            		}else{
-            			throw new RuntimeException("本次升级发现两个套件：["+suitPro.getName()+suitPro.getDescription()+","+p.getName()+p.getDescription()+"]");
-            		}
-            	}else{
-            		updateList.add(p);
-            	}
-            }
+            Project suitPro = getSuitProject(projectList,updateList);
             //需要升级的版本
-            List<Project> verList = new ArrayList<Project>();
-            if(suitPro == null && updateList.size() > 1){
-            	throw new RuntimeException("本次升级，非套件版本中发现多个升级版本。");
-            }
-            //检查套件合法性
-            if(suitPro != null){
-            	List<VerInfo> verInfoList = suitPro.getSuit();
-            	if(verInfoList == null || verInfoList.isEmpty()){
-            		throw new RuntimeException("套件["+suitPro.getName()+"]工程文件，未配置升级版本信息。");
-            	}
-            	for(VerInfo v : verInfoList){
-            		boolean isExist = false;
-            		for(Project p : updateList){
-            			if(v.getName().equals(p.getName()) && v.getVersion().equals(p.getVersion())){
-            				verList.add(p);
-            				isExist = true;
-            				break;
-            			}
-            		}
-            		if(!isExist){
-            			throw new RuntimeException("套件["+suitPro.getName()+"]指定升级版本["+v.getName()+v.getVersion()+"],在套件工程目录下未找到。");
-            		}
-            	}
-            	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"升级开始============================");
-            }else{
-            	verList.add(updateList.get(0));
-            }
+            List<Project> verList = getUpdateVerList(suitPro,updateList);
             Console console = System.console();
-            //个性化脚本检查
-            for(Project p : updateList){
-            	List<String> rgList = p.getSpecialRegion();
-            	Map<String,String> rgMap = new HashMap<String,String>();
-            	if(rgList != null && rgList.size() > 0){
-            		LOG.info("工程：["+p.getName()+"]存在个性化脚本，请选择：");
-            		for(String rg : rgList){
-            			LOG.info("===>"+rg);
-            			String[] rgArr = rg.split("-");
-            			rgMap.put(rgArr[0], rgArr[1]);
-            		}
-            		String inputChar = "";
-            		while(!rgMap.containsKey(inputChar)){
-            			inputChar = console.readLine("请选择您对应地区序号：");
-            		}
-            		p.setCurRegion(rgMap.get(inputChar));
-            	}
-            }
             //版本依赖检查
-            setLastVersion(projectList,properties);
-            List<String> errMsgLs = new ArrayList<String>();
-            
-            for(Project p : projectList){
-            	String errMsg = p.checkVersion();
-            	if((p.getCurrentVerNo() == null || p.getCurrentVerNo().isEmpty()) && !p.isSuit() && console != null){//当前数据库未找到版本记录，判断是否全量安装
-            		String inputChar = "";
-            		LOG.warn("数据库中，未找到项目["+p.getName()+"]的任何版本信息,是否进行全量安装？（Y/N）");
-            		while(!inputChar.equalsIgnoreCase("Y") && !inputChar.equalsIgnoreCase("N") ){
-            			inputChar = console.readLine("Y 进行全量安装 ，N 取消本次安装：");
-            		}
-            		if(inputChar.equalsIgnoreCase("Y")){
-            			LOG.debug("项目["+p.getName()+"]被要求执行全量升级");
-            			p.setFull(true);
-            		}else{
-            			LOG.error("本次安装被被取消");
-            			System.exit(1);
-            		}    		
-            	}else if(errMsg.length() > 0){
-            		errMsgLs.add(errMsg);
-            	}
-            }
-            if(errMsgLs.size() > 0){
-            	for(String s : errMsgLs){
-            		LOG.error(s);
-            	}
-            	System.exit(1);
-            }
-            
+            setLastVersion(verList,properties);
+            checkVersionNo(console,verList);
+            //个性化脚本检查
+            specialSqlCheck(console,verList);
             //是否进行自动发布jar 包等文件
             boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
-            String[] domainDirs = null;
-            if(autoDeploy){
-                //获取domain 目录，即工程发布根目录
-                String domainPath = properties.getProperty("domain.path");
-                if(domainPath != null && domainPath.length()>0){
-                	domainDirs = StringUtils.tokenizeToStringArray(domainPath, ";");
-                	for(String p : domainDirs){
-                		File f = new File(p);
-                		if(f == null || !f.isDirectory()){
-                			throw new RuntimeException("参数[domain.path]指定目录："+p+"不存在，请检查配置。");
-                		}
-                	}
-                }else{
-                	throw new RuntimeException("未指定 参数[domain.path],请检查配置，或改为手动发布。");
-                }               
-            }
-            
+            String[] domainDirs = getDomains(autoDeploy,properties);
             //执行升级
             for(Project p : verList){
             	LOG.info("========================版本"+p.getName()+p.getVersion()+"升级开始============================");
@@ -228,33 +134,14 @@ public class Main {
                 Flyway flyway = new Flyway();
                 filterProperties(properties);
                 flyway.configure(properties);
-                
+                //执行数据库操作
                 for (String operation : operations) {
                     executeOperation(flyway, operation);
                 }
                 LOG.info("版本["+p.getName()+p.getVersion()+"]===数据库升级完成.");
                 //客户端、服务端包升级
                 if(autoDeploy){
-                    //升级版本
-                    String jdkVer = properties.getProperty("server.jdk") == null ? "jdk1.6" : properties.getProperty("server.jdk");
-                	for(String d : domainDirs){
-                		//执行清理文件
-                		if(p.getCleanup() != null && p.getCleanup().size() > 0){
-                			cleanUpFile(p,d);
-                		}
-                		//后台服务包
-                		if(p.getServerPath() != null && !p.getServerPath().equals("")){
-                			Tools.copyFileFromDir(d, p.getInstall_path()+"/"+p.getServerPath()+"/"+jdkVer);
-                		}else{
-                			LOG.debug("发布工程服务端路径未指定，不进行服务端包发布");
-                		}
-                		//客户端DLL包
-                		if(p.getClientPath() != null && !p.getClientPath().equals("")){
-                			Tools.copyFileFromDir(d+"/"+p.getContextName()+"/update", p.getInstall_path()+"/"+p.getClientPath());
-                		}else{
-                			LOG.debug("发布工程客户端路径未指定，不进行客户端包发布");
-                		}
-                	}
+                	deployServer(p,domainDirs,properties);
                 }
                 //插入版本日志信息
                 insertGapVersion(p,properties);
@@ -275,6 +162,174 @@ public class Main {
                 }
             }
             System.exit(1);
+        }
+    }
+    /**
+     * 发布服务包
+     * @param p
+     * @param domainDirs
+     * @param properties
+     */
+    private static void deployServer(Project p,String[] domainDirs,Properties properties){
+        //升级版本
+        String jdkVer = properties.getProperty("server.jdk") == null ? "jdk1.6" : properties.getProperty("server.jdk");
+    	for(String d : domainDirs){
+    		//执行清理文件
+    		if(p.getCleanup() != null && p.getCleanup().size() > 0){
+    			cleanUpFile(p,d);
+    		}
+    		//后台服务包
+    		if(p.getServerPath() != null && !p.getServerPath().equals("")){
+    			Tools.copyFileFromDir(d, p.getInstall_path()+"/"+p.getServerPath()+"/"+jdkVer);
+    		}else{
+    			LOG.debug("发布工程服务端路径未指定，不进行服务端包发布");
+    		}
+    		//客户端DLL包
+    		if(p.getClientPath() != null && !p.getClientPath().equals("")){
+    			Tools.copyFileFromDir(d+"/"+p.getContextName()+"/update", p.getInstall_path()+"/"+p.getClientPath());
+    		}else{
+    			LOG.debug("发布工程客户端路径未指定，不进行客户端包发布");
+    		}
+    	}
+    }
+    /**
+     * 获取发布服务路径
+     * @param autoDeploy
+     * @param properties
+     * @return
+     */
+    private static String[] getDomains(boolean autoDeploy,Properties properties){
+    	String[] domainDirs = null;
+        if(autoDeploy){
+            //获取domain 目录，即工程发布根目录
+            String domainPath = properties.getProperty("domain.path");
+            if(domainPath != null && domainPath.length()>0){
+            	domainDirs = StringUtils.tokenizeToStringArray(domainPath, ";");
+            	for(String p : domainDirs){
+            		File f = new File(p);
+            		if(f == null || !f.isDirectory()){
+            			throw new RuntimeException("参数[domain.path]指定目录："+p+"不存在，请检查配置。");
+            		}
+            	}
+            }else{
+            	throw new RuntimeException("未指定 参数[domain.path],请检查配置，或改为手动发布。");
+            }               
+        }
+        return domainDirs;
+    }
+    
+    /**
+     * 检查版本号，判断是全量还是增量升级
+     * @param console
+     * @param verList
+     */
+    private static void checkVersionNo(Console console,List<Project> verList){
+        List<String> errMsgLs = new ArrayList<String>();
+        for(Project p : verList){
+        	String errMsg = p.checkVersion();
+        	if((p.getCurrentVerNo() == null || p.getCurrentVerNo().isEmpty()) && console != null){//当前数据库未找到版本记录，判断是否全量安装
+        		String inputChar = "";
+        		LOG.warn("数据库中，未找到项目["+p.getName()+"]的任何版本信息,是否进行全量安装？（Y/N）");
+        		while(!inputChar.equalsIgnoreCase("Y") && !inputChar.equalsIgnoreCase("N") ){
+        			inputChar = console.readLine("Y 进行全量安装 ，N 取消本次安装：");
+        		}
+        		if(inputChar.equalsIgnoreCase("Y")){
+        			LOG.debug("项目["+p.getName()+"]被要求执行全量升级");
+        			p.setFull(true);
+        		}else{
+        			LOG.error("本次安装被被取消");
+        			System.exit(1);
+        		}    		
+        	}else if(errMsg.length() > 0){
+        		errMsgLs.add(errMsg);
+        	}
+        }
+        if(errMsgLs.size() > 0){
+        	for(String s : errMsgLs){
+        		LOG.error(s);
+        	}
+        	System.exit(1);
+        }
+    }
+    
+    private static Project getSuitProject(List<Project> projectList,List<Project> updateList){
+    	Project suitPro = null;
+        for(Project p : projectList){
+        	if(p.isSuit()){
+        		if(suitPro == null){
+        			suitPro = p;
+        		}else{
+        			throw new RuntimeException("本次升级发现两个套件：["+suitPro.getName()+suitPro.getDescription()+","+p.getName()+p.getDescription()+"]");
+        		}
+        	}else{
+        		updateList.add(p);
+        	}
+        }
+        return suitPro;
+    }
+    
+    /**
+     * 获取待升级项目
+     * @param suitPro
+     * @param updateList
+     * @return
+     */
+    private static List<Project> getUpdateVerList(Project suitPro,List<Project> updateList){
+        List<Project> verList = new ArrayList<Project>();
+        if(suitPro == null && updateList.size() > 1){
+        	throw new RuntimeException("本次升级，非套件版本中发现多个升级版本。");
+        }
+        //检查套件合法性
+        if(suitPro != null){
+        	List<VerInfo> verInfoList = suitPro.getSuit();
+        	if(verInfoList == null || verInfoList.isEmpty()){
+        		throw new RuntimeException("套件["+suitPro.getName()+"]工程文件，未配置升级版本信息。");
+        	}
+        	for(VerInfo v : verInfoList){
+        		boolean isExist = false;
+        		for(Project p : updateList){
+        			if(v.getName().equals(p.getName()) && v.getVersion().equals(p.getVersion())){
+        				verList.add(p);
+        				isExist = true;
+        				break;
+        			}
+        		}
+        		if(!isExist){
+        			throw new RuntimeException("套件["+suitPro.getName()+"]指定升级版本["+v.getName()+v.getVersion()+"],在套件工程目录下未找到。");
+        		}
+        	}
+        	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"升级开始============================");
+        }else{
+        	verList.add(updateList.get(0));
+        }
+        return verList;
+    }
+    /**
+     * 个性化脚本检查
+     * @param console
+     * @param verList 待升级工程
+     */
+    private static void specialSqlCheck(Console console,List<Project> verList){
+        for(Project p : verList){
+        	List<String> rgList = p.getSpecialRegion();
+        	Map<String,String> rgMap = new HashMap<String,String>();
+        	if(rgList != null && rgList.size() > 0){
+        		LOG.info("工程：["+p.getName()+"]存在个性化脚本，请选择：");
+        		for(String rg : rgList){
+        			LOG.info("===>"+rg);
+        			String[] rgArr = rg.split("-");
+        			rgMap.put(rgArr[0], rgArr[1]);
+        		}
+        		String inputChar = "0";
+        		if(console != null){    		
+            		while(!rgMap.containsKey(inputChar)){
+            			inputChar = console.readLine("请选择您对应地区序号：");
+            		}
+        		}
+        		if(!inputChar.equals("0")){
+        			p.setCurRegion(rgMap.get(inputChar));  
+        		}	  		
+        	}
         }
     }
     /**
