@@ -134,9 +134,23 @@ public class Main {
             //版本依赖检查
             setLastVersion(projectList,properties);
             List<String> errMsgLs = new ArrayList<String>();
+            Console console = System.console();
             for(Project p : projectList){
             	String errMsg = p.checkVersion();
-            	if(errMsg.length() > 0){
+            	if((p.getCurrentVerNo() == null || p.getCurrentVerNo().isEmpty()) && !p.isSuit() && console != null){//当前数据库未找到版本记录，判断是否全量安装
+            		String inputChar = "";
+            		LOG.error("数据库中，未找到项目["+p.getName()+"]的任何版本信息,是否进行全量安装？（Y/N）");
+            		while(!inputChar.equalsIgnoreCase("Y") && !inputChar.equalsIgnoreCase("N") ){
+            			inputChar = console.readLine("Y 进行全量安装 ，N 取消本次安装：");
+            		}
+            		if(inputChar.equalsIgnoreCase("Y")){
+            			LOG.debug("项目["+p.getName()+"]被要求执行全量升级");
+            			p.setFull(true);
+            		}else{
+            			LOG.error("本次安装被被取消");
+            			System.exit(1);
+            		}    		
+            	}else if(errMsg.length() > 0){
             		errMsgLs.add(errMsg);
             	}
             }
@@ -169,7 +183,6 @@ public class Main {
             //执行升级
             for(Project p : verList){
             	LOG.info("========================版本"+p.getName()+p.getVersion()+"升级开始============================");
-            	//TODO 检查基线版本
             	String verTable = p.getVersionTable();
             	if(verTable == null || verTable.length() ==0){
             		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定versionTable,请检查。");
@@ -179,7 +192,12 @@ public class Main {
             		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定databasePath,请检查。");
             	}   	
             	properties.put("flyway.table", verTable);
-            	properties.put("flyway.locations", "classpath:db.migration,filesystem:"+p.getInstall_path()+"/"+databasePath+"/update");
+            	if(p.isFull()){
+            		properties.put("flyway.locations", "classpath:db.migration,filesystem:"+p.getInstall_path()+"/"+databasePath+"/full,filesystem:"+p.getInstall_path()+"/"+databasePath+"/update");
+            	}else{
+            		properties.put("flyway.locations", "classpath:db.migration,filesystem:"+p.getInstall_path()+"/"+databasePath+"/update");
+            	}
+            	
                 Flyway flyway = new Flyway();
                 filterProperties(properties);
                 flyway.configure(properties);
@@ -393,7 +411,10 @@ public class Main {
             LOG.info("\n" + MigrationInfoDumper.dumpToAsciiTable(flyway.info().all()));
         } else if ("repair".equals(operation)) {
             flyway.repair();
-        } else {
+        } else if("init".equals(operation)){
+        	//TODO 进行年度初始化工作，初始化年度，清理业务数据
+        	
+        }else {
             LOG.error("Invalid operation: " + operation);
             printUsage();
             System.exit(1);
@@ -426,6 +447,8 @@ public class Main {
     private static void initializeDefaults(Properties properties) {
         properties.put("flyway.locations", "filesystem:" + new File(getInstallationDir(), "sql").getAbsolutePath());
         properties.put(PROPERTY_JAR_DIRS, new File(getInstallationDir(), "jars").getAbsolutePath());
+        //由于存在全量和增量升级脚本的不同，所以不进行脚本版本依赖校验
+    	properties.put("flyway.validateOnMigrate", false);
     }
 
     /**
@@ -466,6 +489,7 @@ public class Main {
         LOG.info("");
         LOG.info("Commands");
         LOG.info("--------");
+        LOG.info("init  : 进行数据库年度初始化");
         LOG.info("migrate  : 进行数据库升级");
         LOG.info("clean    : 清空数据库，风险较大，暂停使用");
         LOG.info("info     : 查看升级信息");

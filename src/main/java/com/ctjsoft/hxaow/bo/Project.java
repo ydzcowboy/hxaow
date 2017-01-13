@@ -42,6 +42,16 @@ public class Project {
 	//当前版本号
 	String currentVerNo = "";
 	
+	boolean isFull = false;
+	
+	public boolean isFull() {
+		return isFull;
+	}
+
+	public void setFull(boolean isFull) {
+		this.isFull = isFull;
+	}
+
 	public String getCurrentVerNo() {
 		return currentVerNo;
 	}
@@ -149,7 +159,7 @@ public class Project {
 	
 	public String checkVersion(){
 		String errMsg = "";
-    	if(baseversion != null && !baseversion.isEmpty()){
+		if(baseversion != null && !baseversion.isEmpty()){
     		String baseVer = this.getName()+baseversion;
     		if(this.getCurrentVerNo() == null || baseVer.compareTo(this.getCurrentVerNo())>0){
     			errMsg = "工程："+this.getName()+"版本依赖异常，当前版本【"+this.getCurrentVerNo()+"】小于基线版本【"+baseVer+"】，请先升级到此基线版本。";
