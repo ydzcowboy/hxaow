@@ -15,6 +15,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -131,15 +132,34 @@ public class Main {
             }else{
             	verList.add(updateList.get(0));
             }
+            Console console = System.console();
+            //个性化脚本检查
+            for(Project p : updateList){
+            	List<String> rgList = p.getSpecialRegion();
+            	Map<String,String> rgMap = new HashMap<String,String>();
+            	if(rgList != null && rgList.size() > 0){
+            		LOG.info("工程：["+p.getName()+"]存在个性化脚本，请选择：");
+            		for(String rg : rgList){
+            			LOG.info("===>"+rg);
+            			String[] rgArr = rg.split("-");
+            			rgMap.put(rgArr[0], rgArr[1]);
+            		}
+            		String inputChar = "";
+            		while(!rgMap.containsKey(inputChar)){
+            			inputChar = console.readLine("请选择您对应地区序号：");
+            		}
+            		p.setCurRegion(rgMap.get(inputChar));
+            	}
+            }
             //版本依赖检查
             setLastVersion(projectList,properties);
             List<String> errMsgLs = new ArrayList<String>();
-            Console console = System.console();
+            
             for(Project p : projectList){
             	String errMsg = p.checkVersion();
             	if((p.getCurrentVerNo() == null || p.getCurrentVerNo().isEmpty()) && !p.isSuit() && console != null){//当前数据库未找到版本记录，判断是否全量安装
             		String inputChar = "";
-            		LOG.error("数据库中，未找到项目["+p.getName()+"]的任何版本信息,是否进行全量安装？（Y/N）");
+            		LOG.warn("数据库中，未找到项目["+p.getName()+"]的任何版本信息,是否进行全量安装？（Y/N）");
             		while(!inputChar.equalsIgnoreCase("Y") && !inputChar.equalsIgnoreCase("N") ){
             			inputChar = console.readLine("Y 进行全量安装 ，N 取消本次安装：");
             		}
@@ -192,12 +212,19 @@ public class Main {
             		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定databasePath,请检查。");
             	}   	
             	properties.put("flyway.table", verTable);
-            	if(p.isFull()){
-            		properties.put("flyway.locations", "classpath:db.migration,filesystem:"+p.getInstall_path()+"/"+databasePath+"/full,filesystem:"+p.getInstall_path()+"/"+databasePath+"/update");
-            	}else{
-            		properties.put("flyway.locations", "classpath:db.migration,filesystem:"+p.getInstall_path()+"/"+databasePath+"/update");
+            	StringBuffer filesystem = new StringBuffer("classpath:db.migration");
+            	
+            	if(p.isFull()){//全量脚本
+            		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/full");
+            	}
+            	//产品化增量脚本
+            	filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/update");
+            	//个性化脚本
+            	if(p.getCurRegion() != null && !p.getCurRegion().isEmpty()){
+            		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/").append(p.getCurRegion());
             	}
             	
+            	properties.put("flyway.locations",filesystem.toString());
                 Flyway flyway = new Flyway();
                 filterProperties(properties);
                 flyway.configure(properties);
@@ -209,7 +236,7 @@ public class Main {
                 //客户端、服务端包升级
                 if(autoDeploy){
                     //升级版本
-                    String jdkVer = properties.getProperty("flyway.jdk") == null ? "jdk1.6" : properties.getProperty("flyway.jdk");
+                    String jdkVer = properties.getProperty("server.jdk") == null ? "jdk1.6" : properties.getProperty("server.jdk");
                 	for(String d : domainDirs){
                 		//执行清理文件
                 		if(p.getCleanup() != null && p.getCleanup().size() > 0){
@@ -726,11 +753,6 @@ public class Main {
         
         if (!properties.containsKey("domain.path")) {
             properties.put("domain.path", console.readLine("升级服务domain路径,如：D:\\bea103\\user_projects\\domains\\domain_8001\\servers:"));
-        }
-        
-        if (!properties.containsKey("flyway.region")) {
-        	//TODO 打印个性化地区列表
-            properties.put("flyway.region", console.readLine("请选择地区:"));
         }
     }
 

@@ -35,15 +35,26 @@ public class Project {
 	List<VerInfo> suit;
 	// 含个性化脚本的地区，个性化脚本，需按此创建文件夹
 	List<String> specialRegion;
+	// 当前选择地区
+	String curRegion = "";
+	
 	//工程安装目录
 	String install_path = "";
 	//工程部署名
 	String contextName = "";
 	//当前版本号
 	String currentVerNo = "";
-	
+	//是否全量升级
 	boolean isFull = false;
 	
+	public String getCurRegion() {
+		return curRegion;
+	}
+
+	public void setCurRegion(String curRegion) {
+		this.curRegion = curRegion;
+	}
+
 	public boolean isFull() {
 		return isFull;
 	}
