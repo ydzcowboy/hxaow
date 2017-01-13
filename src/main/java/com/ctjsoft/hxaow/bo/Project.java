@@ -10,7 +10,7 @@ import javax.xml.bind.annotation.XmlRootElement;
  *
  */
 @XmlRootElement
-public class Project {
+public class Project implements Cloneable{
 	//工程名称
 	String name;
 	//子系统ID
@@ -178,5 +178,16 @@ public class Project {
     	}
     	return errMsg;
 	}
+	@Override
+    public Project clone(){  
+        Project sc = null;  
+        try  
+        {  
+            sc = (Project) super.clone();  
+        } catch (CloneNotSupportedException e){  
+            e.printStackTrace();  
+        }  
+        return sc;  
+    }  
 	
 }

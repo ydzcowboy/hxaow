@@ -65,7 +65,6 @@ public class Main {
      *
      * @param args The command-line arguments.
      */
-    @SuppressWarnings("unused")
 	public static void main(String[] args) {
         Level logLevel = getLogLevel(args);
         initLogging(logLevel);
@@ -103,6 +102,8 @@ public class Main {
             checkVersionNo(console,verList);
             //个性化脚本检查
             specialSqlCheck(console,verList);
+            //项目库特殊处理
+            addPmDB(console,verList,properties);
             //是否进行自动发布jar 包等文件
             boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
             String[] domainDirs = getDomains(autoDeploy,properties);
@@ -144,8 +145,8 @@ public class Main {
                 	deployServer(p,domainDirs,properties);
                 }
                 //插入版本日志信息
-                insertGapVersion(p,properties);
-                LOG.info("========================版本"+p.getName()+p.getVersion()+"升级成功============================");
+                insertGapVersion(p,properties);	
+            	LOG.info("========================版本"+p.getName()+p.getVersion()+"升级成功============================");
             }
             if(suitPro != null){
             	insertGapVersion(suitPro,properties);
@@ -164,6 +165,39 @@ public class Main {
             System.exit(1);
         }
     }
+
+	/**
+	 * 对项目库进行特殊处理，添加常态库
+	 * 
+	 * @param verList
+	 */
+	private static void addPmDB(Console console,List<Project> verList,Properties properties) {
+		Project pmDbProject = null;
+		int index = 0;
+		for (Project p : verList) {
+			if (p.getName().equalsIgnoreCase("PM")) {
+		        if (!properties.containsKey("pm_db.user")) {
+		            properties.put("pm_db.user", console.readLine("请输入常态库用户名: "));
+		        }
+		        if (!properties.containsKey("pm_db.password")) {
+		            char[] password = console.readPassword("请输入常态库密码: ");
+		            properties.put("pm_db.password", password == null ? "" : String.valueOf(password));
+		        }
+				pmDbProject = p.clone();
+				pmDbProject.setName("PM_DB");
+				pmDbProject.setVersionTable("gap_version_pmdb");
+				pmDbProject.setDatabasePath(pmDbProject.getDatabasePath()
+						+ "/常态库");
+				p.setDatabasePath(p.getDatabasePath() + "/年度库");
+				break;
+			}
+			index++;
+		}
+		if(pmDbProject != null){
+			verList.add(index, pmDbProject);
+		}
+	}
+	
     /**
      * 发布服务包
      * @param p
@@ -171,6 +205,8 @@ public class Main {
      * @param properties
      */
     private static void deployServer(Project p,String[] domainDirs,Properties properties){
+    	if(p.getName().equals("PM_DB"))
+    		return;
         //升级版本
         String jdkVer = properties.getProperty("server.jdk") == null ? "jdk1.6" : properties.getProperty("server.jdk");
     	for(String d : domainDirs){
@@ -384,6 +420,8 @@ public class Main {
      * @param properties
      */
     private static void insertGapVersion(Project p,Properties properties){
+    	if(p.getName().equals("PM_DB"))
+    		return;
     	Connection con = Tools.getJdbcConnection(properties.getProperty("flyway.url"), properties.getProperty("flyway.user"), properties.getProperty("flyway.password"));
     	if(con != null){
     		 String updateSql = "update gap_version set is_now=0 where sys_id="+p.getSysId()+" and sys_code='"+p.getName()+"'";
@@ -798,11 +836,11 @@ public class Main {
 //        }
 
         if (!properties.containsKey("flyway.user")) {
-            properties.put("flyway.user", console.readLine("Database user: "));
+            properties.put("flyway.user", console.readLine("请输入数据库用户: "));
         }
 
         if (!properties.containsKey("flyway.password")) {
-            char[] password = console.readPassword("Database password: ");
+            char[] password = console.readPassword("请输入数据库密码: ");
             properties.put("flyway.password", password == null ? "" : String.valueOf(password));
         }
         
