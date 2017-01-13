@@ -10,6 +10,10 @@ import java.io.StringReader;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -127,6 +131,22 @@ public class Main {
             }else{
             	verList.add(updateList.get(0));
             }
+            //版本依赖检查
+            setLastVersion(projectList,properties);
+            List<String> errMsgLs = new ArrayList<String>();
+            for(Project p : projectList){
+            	String errMsg = p.checkVersion();
+            	if(errMsg.length() > 0){
+            		errMsgLs.add(errMsg);
+            	}
+            }
+            if(errMsgLs.size() > 0){
+            	for(String s : errMsgLs){
+            		LOG.error(s);
+            	}
+            	System.exit(1);
+            }
+            
             //是否进行自动发布jar 包等文件
             boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
             String[] domainDirs = null;
@@ -191,9 +211,12 @@ public class Main {
                 		}
                 	}
                 }
+                //插入版本日志信息
+                insertGapVersion(p,properties);
                 LOG.info("========================版本"+p.getName()+p.getVersion()+"升级成功============================");
             }
             if(suitPro != null){
+            	insertGapVersion(suitPro,properties);
             	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"升级成功============================");
             }
         } catch (Exception e) {
@@ -208,6 +231,82 @@ public class Main {
             }
             System.exit(1);
         }
+    }
+    /**
+     * 设置项目最新一个版本的版本号
+     * @param p
+     * @param properties
+     * @return
+     */
+    private static void setLastVersion(List<Project> projectList,Properties properties)
+    {
+    	Connection con = Tools.getJdbcConnection(properties.getProperty("flyway.url"), properties.getProperty("flyway.user"), properties.getProperty("flyway.password"));
+    	if(con != null){
+   		 StringBuffer querySql = new StringBuffer("select sys_id,sys_code,version_no from  gap_version where is_now = 1 and (");
+   		 for(Project p : projectList){
+   			 querySql.append("(sys_id="+p.getSysId()+" and sys_code='"+p.getName()+"') or ");
+   		 }
+   		 querySql.delete(querySql.length()-3, querySql.length());
+   		 querySql.append(")  order by version_no desc");
+   		 
+   		 Statement st = null;
+   		 ResultSet rs = null;
+   		 try {
+				st = con.createStatement();
+				rs = st.executeQuery(querySql.toString());
+				while(rs.next()){
+					long sysId = rs.getLong("sys_id");
+					String sysCode = rs.getString("sys_code");
+					String versionNo = rs.getString("version_no");
+					for(Project p : projectList){
+						if(p.getSysId() == sysId && p.getName().equals(sysCode)){
+							p.setCurrentVerNo(versionNo);
+						}
+					}
+				}	
+			} catch (SQLException e) {
+				throw new RuntimeException("查询版本信息出错："+e.getMessage());
+			}finally{
+				try {
+					rs.close();
+					st.close();
+					con.close();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			}
+    	}
+    }
+    
+    /**
+     * 保存版本信息
+     * @param p
+     * @param properties
+     */
+    private static void insertGapVersion(Project p,Properties properties){
+    	Connection con = Tools.getJdbcConnection(properties.getProperty("flyway.url"), properties.getProperty("flyway.user"), properties.getProperty("flyway.password"));
+    	if(con != null){
+    		 String updateSql = "update gap_version set is_now=0 where sys_id="+p.getSysId()+" and sys_code='"+p.getName()+"'";
+    		 String insertSql = "insert into gap_version(sys_id,sys_code,version_no,update_date,is_now) values ("+p.getSysId()+",'"+p.getName()+"','"+p.getName()+p.getVersion()+"',sysdate,1)";
+    		 Statement st = null;
+    		 try {
+				st = con.createStatement();
+				st.addBatch(updateSql);
+				st.addBatch(insertSql);
+				st.executeBatch();
+			} catch (SQLException e) {
+				LOG.error("执行版本插入异常："+e.getMessage());
+				e.printStackTrace();
+			}finally{
+				try {
+					st.close();
+					con.close();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			}
+    		LOG.debug("更新版本："+p.getName()+p.getVersion());
+    	}
     }
     /**
      * 執行文件清理

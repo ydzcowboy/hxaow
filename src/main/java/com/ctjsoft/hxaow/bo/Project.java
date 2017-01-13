@@ -39,7 +39,17 @@ public class Project {
 	String install_path = "";
 	//工程部署名
 	String contextName = "";
+	//当前版本号
+	String currentVerNo = "";
 	
+	public String getCurrentVerNo() {
+		return currentVerNo;
+	}
+
+	public void setCurrentVerNo(String currentVerNo) {
+		this.currentVerNo = currentVerNo;
+	}
+
 	public String getContextName() {
 		return contextName;
 	}
@@ -136,4 +146,16 @@ public class Project {
 	public void setSuit(List<VerInfo> suit) {
 		this.suit = suit;
 	}
+	
+	public String checkVersion(){
+		String errMsg = "";
+    	if(baseversion != null && !baseversion.isEmpty()){
+    		String baseVer = this.getName()+baseversion;
+    		if(this.getCurrentVerNo() == null || baseVer.compareTo(this.getCurrentVerNo())>0){
+    			errMsg = "工程："+this.getName()+"版本依赖异常，当前版本【"+this.getCurrentVerNo()+"】小于基线版本【"+baseVer+"】，请先升级到此基线版本。";
+    		}
+    	}
+    	return errMsg;
+	}
+	
 }

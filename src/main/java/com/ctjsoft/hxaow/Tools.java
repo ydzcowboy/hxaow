@@ -6,10 +6,10 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.flywaydb.core.internal.util.logging.Log;
 import org.flywaydb.core.internal.util.logging.LogFactory;
@@ -211,6 +211,24 @@ public class Tools {
                 }  
             }  
         }  
-    }  
+    } 
+    /**
+     * 获取数据库连接
+     * @param url
+     * @param user
+     * @param passwork
+     * @return
+     */
+    public static Connection getJdbcConnection(String url,String user,String password){
+    	Connection con = null;
+    	try {
+			Class.forName("oracle.jdbc.driver.OracleDriver");
+			con = DriverManager.getConnection(url, user, password);
+		} catch (Exception e) {
+			e.printStackTrace();
+			LOG.error("获取数据库连接失败："+e.getMessage());
+		}
+    	return con;
+    }
       
 }

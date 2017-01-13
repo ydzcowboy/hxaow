@@ -8,8 +8,8 @@
     <version>2016.07.30.00(build20161216)</version>
     <!--脚本升级版本日志表,记录脚本依赖关系-->
     <versionTable>gap_version_framework</versionTable>
-    <!--基线版本-->
-    <baseversion>0</baseversion>
+    <!--基线版本,用于增量升级时，检测依赖，只有目前库里版本大于等于此基线版本，才可进行增量升级。为空表示不进行任何依赖-->
+    <baseversion>2015.07.30.00(build20151216)</baseversion>
     <!--工程部署名 -->
     <contextName>realware</contextName>
     <!--需要清除的文件,仅支持文件名的统配符*-->
@@ -21,5 +21,11 @@
     <serverPath>服务器端</serverPath>
     <clientPath>客户端</clientPath>
     <databasePath>脚本</databasePath>
-
+    <!-- 含个性化脚本的地区，个性化脚本，需按此创建文件夹 -->
+    <specialRegion>
+    	<string>0-产品化</string>
+    	<string>1-太仓</string>
+    	<string>2-苏州市局</string>
+    	<string>3-深圳市局</string>
+    </specialRegion>
 </Project>
