@@ -7,10 +7,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import org.flywaydb.core.internal.util.DateUtils;
+import org.flywaydb.core.internal.util.StringUtils;
 import org.flywaydb.core.internal.util.logging.Log;
 import org.flywaydb.core.internal.util.logging.LogFactory;
 
@@ -230,5 +234,59 @@ public class Tools {
 		}
     	return con;
     }
+    /**
+     * 获取版本信息
+     * @param proList
+     * @return
+     */
+	public static String versionInfo(List<Map> proList) {
+		int sysCodeWidth = "SYS_CODE".length();
+		int versionNoWidth = "VERSION_NO".length();
+		int i = proList.size();
+		for (int j = 0; j < i; j++) {
+			Map migrationInfo = proList.get(j);
+			sysCodeWidth = Math.max(sysCodeWidth,
+					migrationInfo.get("sys_code") != null ? migrationInfo.get("sys_code").toString().length() : 0);
+			versionNoWidth = Math.max(versionNoWidth, migrationInfo.get("version_no").toString().length());
+		}
+
+		String ruler = (new StringBuilder()).append("+-")
+				.append(StringUtils.trimOrPad("", sysCodeWidth, '-'))
+				.append("-+-")
+				.append(StringUtils.trimOrPad("", versionNoWidth, '-'))
+				.append("-+---------------------+---------+\n").toString();
+		StringBuilder table = new StringBuilder();
+		table.append(ruler);
+		table.append("| ")
+				.append(StringUtils.trimOrPad("SYS_CODE", sysCodeWidth, ' '))
+				.append(" | ")
+				.append(StringUtils.trimOrPad("VERSION_NO", versionNoWidth))
+				.append(" | Installed on        | State   |\n");
+		table.append(ruler);
+		if (proList.size() == 0) {
+			table.append(
+					StringUtils.trimOrPad("| No migrations found",
+							ruler.length() - 2, ' ')).append("|\n");
+		} else {
+			int k = proList.size();
+			for (int l = 0; l < k; l++) {
+				Map migrationInfo = proList.get(l);
+				String versionStr = migrationInfo.get("sys_code")!= null ? migrationInfo.get("sys_code").toString() : "";
+				table.append("| ").append(
+						StringUtils.trimOrPad(versionStr, sysCodeWidth));
+				table.append(" | ").append(
+						StringUtils.trimOrPad(migrationInfo.get("version_no").toString(),
+								versionNoWidth));
+				table.append(" | ").append(
+						StringUtils.trimOrPad(DateUtils
+								.formatDateAsIsoString((Date)migrationInfo.get("update_date")), 19));
+				table.append(" | ").append(
+						StringUtils.trimOrPad("OK", 7));
+				table.append(" |\n");
+			}
+		}
+		table.append(ruler);
+		return table.toString();
+	}
       
 }

@@ -97,19 +97,34 @@ public class Main {
             //需要升级的版本
             List<Project> verList = getUpdateVerList(suitPro,updateList);
             Console console = System.console();
+            boolean isMigrate = false;
+            for(String o : operations){
+            	if("migrate".equals(o)){
+            	 isMigrate = true;
+            	 break;
+            	}
+            }
             //版本依赖检查
-            setLastVersion(verList,properties);
-            checkVersionNo(console,verList);
-            //个性化脚本检查
-            specialSqlCheck(console,verList);
+            setLastVersion(verList,properties,operations);
+            
+            if(isMigrate){
+                checkVersionNo(console,verList);
+                //个性化脚本检查
+                specialSqlCheck(console,verList);
+            }
             //项目库特殊处理
             addPmDB(console,verList,properties);
             //是否进行自动发布jar 包等文件
             boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
             String[] domainDirs = getDomains(autoDeploy,properties);
             //执行升级
+            String user = (String)properties.get("flyway.user");
+            String password = (String)properties.get("flyway.password");
+            if(suitPro != null){
+            	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"操作开始============================");
+            }
             for(Project p : verList){
-            	LOG.info("========================版本"+p.getName()+p.getVersion()+"升级开始============================");
+            	LOG.info("========================版本"+p.getName()+p.getVersion()+"操作开始============================");
             	String verTable = p.getVersionTable();
             	if(verTable == null || verTable.length() ==0){
             		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定versionTable,请检查。");
@@ -119,6 +134,14 @@ public class Main {
             		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定databasePath,请检查。");
             	}   	
             	properties.put("flyway.table", verTable);
+            	//项目库特殊处理，需要更换数据库
+            	if(p.getName().equals("PM_DB")){
+            		properties.put("flyway.user", properties.get("pm_db.user"));
+            		properties.put("flyway.password", properties.get("pm_db.password"));
+            	}else{
+               		properties.put("flyway.user", user);
+            		properties.put("flyway.password", password);
+            	}
             	StringBuffer filesystem = new StringBuffer("classpath:db.migration");
             	
             	if(p.isFull()){//全量脚本
@@ -139,18 +162,22 @@ public class Main {
                 for (String operation : operations) {
                     executeOperation(flyway, operation);
                 }
-                LOG.info("版本["+p.getName()+p.getVersion()+"]===数据库升级完成.");
-                //客户端、服务端包升级
-                if(autoDeploy){
-                	deployServer(p,domainDirs,properties);
+                LOG.info("版本["+p.getName()+p.getVersion()+"]===数据库操作完成.");
+                if(isMigrate){
+                    //客户端、服务端包升级
+                    if(autoDeploy){
+                    	deployServer(p,domainDirs,properties);
+                    }
+                    //插入版本日志信息
+                    insertGapVersion(p,properties);	
                 }
-                //插入版本日志信息
-                insertGapVersion(p,properties);	
-            	LOG.info("========================版本"+p.getName()+p.getVersion()+"升级成功============================");
+            	LOG.info("========================版本"+p.getName()+p.getVersion()+"操作成功============================");
             }
             if(suitPro != null){
-            	insertGapVersion(suitPro,properties);
-            	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"升级成功============================");
+            	if(isMigrate){
+            		insertGapVersion(suitPro,properties);
+            	}
+            	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"操作成功============================");
             }
         } catch (Exception e) {
             if (logLevel == Level.DEBUG) {
@@ -177,11 +204,19 @@ public class Main {
 		for (Project p : verList) {
 			if (p.getName().equalsIgnoreCase("PM")) {
 		        if (!properties.containsKey("pm_db.user")) {
-		            properties.put("pm_db.user", console.readLine("请输入常态库用户名: "));
+		        	if(console != null)
+		        		properties.put("pm_db.user", console.readLine("请输入常态库用户名: "));
+		        	else
+		        		throw new RuntimeException("请检查配置文件，pm_db.user 参数未配置。");
 		        }
 		        if (!properties.containsKey("pm_db.password")) {
-		            char[] password = console.readPassword("请输入常态库密码: ");
-		            properties.put("pm_db.password", password == null ? "" : String.valueOf(password));
+		        	if(console != null){
+		        		char[] password = console.readPassword("请输入常态库密码: ");
+			            properties.put("pm_db.password", password == null ? "" : String.valueOf(password));
+		        	}else{
+		        		throw new RuntimeException("请检查配置文件，pm_db.password 参数未配置。");
+		        	}
+		            
 		        }
 				pmDbProject = p.clone();
 				pmDbProject.setName("PM_DB");
@@ -273,7 +308,7 @@ public class Main {
         			LOG.debug("项目["+p.getName()+"]被要求执行全量升级");
         			p.setFull(true);
         		}else{
-        			LOG.error("本次安装被被取消");
+        			LOG.warn("本次安装被被取消");
         			System.exit(1);
         		}    		
         	}else if(errMsg.length() > 0){
@@ -334,7 +369,6 @@ public class Main {
         			throw new RuntimeException("套件["+suitPro.getName()+"]指定升级版本["+v.getName()+v.getVersion()+"],在套件工程目录下未找到。");
         		}
         	}
-        	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"升级开始============================");
         }else{
         	verList.add(updateList.get(0));
         }
@@ -356,14 +390,16 @@ public class Main {
         			String[] rgArr = rg.split("-");
         			rgMap.put(rgArr[0], rgArr[1]);
         		}
-        		String inputChar = "0";
+        		String inputChar = "";
         		if(console != null){    		
             		while(!rgMap.containsKey(inputChar)){
             			inputChar = console.readLine("请选择您对应地区序号：");
             		}
         		}
         		if(!inputChar.equals("0")){
-        			p.setCurRegion(rgMap.get(inputChar));  
+        			if(rgMap.get(inputChar) != null){
+        				p.setCurRegion(rgMap.get(inputChar));  
+        			}
         		}	  		
         	}
         }
@@ -374,11 +410,21 @@ public class Main {
      * @param properties
      * @return
      */
-    private static void setLastVersion(List<Project> projectList,Properties properties)
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+	private static void setLastVersion(List<Project> projectList,Properties properties,List<String> operations)
     {
+    	boolean isInfo = false;
+    	for(String o : operations){
+    		if("info".equals(o)){
+    			isInfo = true;
+    			break;
+    		}
+    	}
+    	StringBuffer verInfo = new StringBuffer();
+    	List<Map> infoLs = new ArrayList<Map>();
     	Connection con = Tools.getJdbcConnection(properties.getProperty("flyway.url"), properties.getProperty("flyway.user"), properties.getProperty("flyway.password"));
     	if(con != null){
-   		 StringBuffer querySql = new StringBuffer("select sys_id,sys_code,version_no from  gap_version where is_now = 1 and (");
+   		 StringBuffer querySql = new StringBuffer("select sys_id,sys_code,version_no,update_date from  gap_version where is_now = 1 and (");
    		 for(Project p : projectList){
    			 querySql.append("(sys_id="+p.getSysId()+" and sys_code='"+p.getName()+"') or ");
    		 }
@@ -390,7 +436,16 @@ public class Main {
    		 try {
 				st = con.createStatement();
 				rs = st.executeQuery(querySql.toString());
+				Map info = null;
 				while(rs.next()){
+					if(isInfo){
+						info = new HashMap();
+						info.put("sys_code",rs.getString("sys_code"));
+						info.put("version_no", rs.getString("version_no"));
+						info.put("update_date", rs.getDate("update_date"));	
+						infoLs.add(info);
+					}		
+					
 					long sysId = rs.getLong("sys_id");
 					String sysCode = rs.getString("sys_code");
 					String versionNo = rs.getString("version_no");
@@ -412,6 +467,9 @@ public class Main {
 				}
 			}
     	}
+    	if(!infoLs.isEmpty()){
+    		LOG.info("待升级子当前系统版本信息：\n" + Tools.versionInfo(infoLs));
+    	}  	
     }
     
     /**
@@ -528,7 +586,7 @@ public class Main {
         } else if ("validate".equals(operation)) {
             flyway.validate();
         } else if ("info".equals(operation)) {
-            LOG.info("\n" + MigrationInfoDumper.dumpToAsciiTable(flyway.info().all()));
+            LOG.info("脚本日志信息：\n" + MigrationInfoDumper.dumpToAsciiTable(flyway.info().all()));
         } else if ("repair".equals(operation)) {
             flyway.repair();
         } else if("init".equals(operation)){
@@ -567,8 +625,10 @@ public class Main {
     private static void initializeDefaults(Properties properties) {
         properties.put("flyway.locations", "filesystem:" + new File(getInstallationDir(), "sql").getAbsolutePath());
         properties.put(PROPERTY_JAR_DIRS, new File(getInstallationDir(), "jars").getAbsolutePath());
+        properties.put("flyway.baselineOnMigrate", true);
         //由于存在全量和增量升级脚本的不同，所以不进行脚本版本依赖校验
     	properties.put("flyway.validateOnMigrate", false);
+    	
     }
 
     /**
