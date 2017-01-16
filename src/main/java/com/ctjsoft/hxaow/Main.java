@@ -595,7 +595,7 @@ public class Main {
             flyway.repair();
         } else if("init".equals(operation)){
         	//TODO 进行年度初始化工作，初始化年度，清理业务数据
-        	
+        	LOG.warn("尚未实现，敬请期待。。。。");
         }else {
             LOG.error("Invalid operation: " + operation);
             printUsage();
