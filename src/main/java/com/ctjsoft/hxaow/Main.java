@@ -204,10 +204,12 @@ public class Main {
 		for (Project p : verList) {
 			if (p.getName().equalsIgnoreCase("PM")) {
 		        if (!properties.containsKey("pm_db.user")) {
-		        	if(console != null)
+		        	if(console != null){
 		        		properties.put("pm_db.user", console.readLine("请输入常态库用户名: "));
-		        	else
+		        		LOG.debug("pm_db.user 常态库用户名:"+properties.getProperty("pm_db.user"));
+		        	}else{
 		        		throw new RuntimeException("请检查配置文件，pm_db.user 参数未配置。");
+		        	}		        		
 		        }
 		        if (!properties.containsKey("pm_db.password")) {
 		        	if(console != null){
@@ -304,6 +306,7 @@ public class Main {
         		while(!inputChar.equalsIgnoreCase("Y") && !inputChar.equalsIgnoreCase("N") ){
         			inputChar = console.readLine("Y 进行全量安装 ，N 取消本次安装：");
         		}
+        		LOG.debug("选项："+inputChar);
         		if(inputChar.equalsIgnoreCase("Y")){
         			LOG.debug("项目["+p.getName()+"]被要求执行全量升级");
         			p.setFull(true);
@@ -395,6 +398,7 @@ public class Main {
             		while(!rgMap.containsKey(inputChar)){
             			inputChar = console.readLine("请选择您对应地区序号：");
             		}
+            		LOG.debug("选项："+inputChar);
         		}
         		if(!inputChar.equals("0")){
         			if(rgMap.get(inputChar) != null){
@@ -897,6 +901,7 @@ public class Main {
 
         if (!properties.containsKey("flyway.user")) {
             properties.put("flyway.user", console.readLine("请输入数据库用户: "));
+            LOG.debug("flyway.user数据库用户："+properties.getProperty("flyway.user"));
         }
 
         if (!properties.containsKey("flyway.password")) {
@@ -906,6 +911,7 @@ public class Main {
         
         if (!properties.containsKey("domain.path")) {
             properties.put("domain.path", console.readLine("升级服务domain路径,如：D:\\bea103\\user_projects\\domains\\domain_8001\\servers:"));
+            LOG.debug("domain.path升级路径："+properties.getProperty("domain.path"));
         }
     }
 
