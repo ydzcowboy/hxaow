@@ -46,7 +46,18 @@ public class Project implements Cloneable{
 	String currentVerNo = "";
 	//是否全量升级
 	boolean isFull = false;
+	//是否涉及常态库，默认为false,如果涉及，脚本结果需要分[常态库]、[年度库] 进行存放
+	boolean isPmDb = false;
 	
+
+	public boolean getIsPmDb() {
+		return isPmDb;
+	}
+
+	public void setIsPmDb(boolean isPmDb) {
+		this.isPmDb = isPmDb;
+	}
+
 	public String getCurRegion() {
 		return curRegion;
 	}

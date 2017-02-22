@@ -110,9 +110,9 @@ public class Main {
             if(isMigrate){
                 checkVersionNo(console,verList);
                 //个性化脚本检查
-                specialSqlCheck(console,verList);
-            }
-            //项目库特殊处理
+                specialSqlCheck(console,verList);             
+            }          
+            //常态库特殊处理
             addPmDB(console,verList,properties);
             //是否进行自动发布jar 包等文件
             boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
@@ -121,10 +121,10 @@ public class Main {
             String user = (String)properties.get("flyway.user");
             String password = (String)properties.get("flyway.password");
             if(suitPro != null){
-            	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"操作开始============================");
+            	LOG.info("套件"+suitPro.getName()+suitPro.getVersion()+"操作开始");
             }
             for(Project p : verList){
-            	LOG.info("========================版本"+p.getName()+p.getVersion()+"操作开始============================");
+            	LOG.info("版本"+p.getName()+p.getVersion()+"操作开始");
             	String verTable = p.getVersionTable();
             	if(verTable == null || verTable.length() ==0){
             		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定versionTable,请检查。");
@@ -134,8 +134,8 @@ public class Main {
             		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定databasePath,请检查。");
             	}   	
             	properties.put("flyway.table", verTable);
-            	//项目库特殊处理，需要更换数据库
-            	if(p.getName().equals("PM_DB")){
+            	//常态库特殊处理，需要更换数据库
+            	if("PM_DB".equals(p.getName())){
             		properties.put("flyway.user", properties.get("pm_db.user"));
             		properties.put("flyway.password", properties.get("pm_db.password"));
             	}else{
@@ -162,7 +162,7 @@ public class Main {
                 for (String operation : operations) {
                     executeOperation(flyway, operation);
                 }
-                LOG.info("版本["+p.getName()+p.getVersion()+"]===数据库操作完成.");
+                LOG.info("版本["+p.getName()+p.getVersion()+"]数据库操作完成.");
                 if(isMigrate){
                     //客户端、服务端包升级
                     if(autoDeploy){
@@ -171,13 +171,13 @@ public class Main {
                     //插入版本日志信息
                     insertGapVersion(p,properties);	
                 }
-            	LOG.info("========================版本"+p.getName()+p.getVersion()+"操作成功============================");
+            	LOG.info("版本"+p.getName()+p.getVersion()+"操作成功");
             }
             if(suitPro != null){
             	if(isMigrate){
             		insertGapVersion(suitPro,properties);
             	}
-            	LOG.info("========================套件"+suitPro.getName()+suitPro.getVersion()+"操作成功============================");
+            	LOG.info("套件"+suitPro.getName()+suitPro.getVersion()+"操作成功");
             }
         } catch (Exception e) {
             if (logLevel == Level.DEBUG) {
@@ -202,7 +202,7 @@ public class Main {
 		Project pmDbProject = null;
 		int index = 0;
 		for (Project p : verList) {
-			if (p.getName().equalsIgnoreCase("PM")) {
+			if (p.getIsPmDb()) {
 		        if (!properties.containsKey("pm_db.user")) {
 		        	if(console != null){
 		        		properties.put("pm_db.user", console.readLine("请输入常态库用户名: "));
