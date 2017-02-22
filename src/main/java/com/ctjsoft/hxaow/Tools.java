@@ -118,7 +118,7 @@ public class Tools {
             copyFileToDir(targetFile.getAbsolutePath() + "/" + file.getName(),  
                     listFile(file));// 复制文件到指定目录  
         }  
-    }  
+    }
   
     /**
      * 复制一组文件到指定目录。targetDir是目标目录，filePath是需要复制的文件路径  
@@ -203,6 +203,7 @@ public class Tools {
         if (!file.exists()) {// 如果文件不存在  
             if (!file.getParentFile().exists()) {// 如果文件父目录不存在  
                 createFile(file.getParentFile(), false);  
+                createFile(file,isFile);
             } else {// 存在文件父目录  
                 if (isFile) {// 创建文件  
                     try {  
