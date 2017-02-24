@@ -472,7 +472,7 @@ public class Main {
 			}
     	}
     	if(!infoLs.isEmpty()){
-    		LOG.info("待升级子当前系统版本信息：\n" + Tools.versionInfo(infoLs));
+    		LOG.info("待升级子系统当前版本信息：\n" + Tools.versionInfo(infoLs));
     	}  	
     }
     
