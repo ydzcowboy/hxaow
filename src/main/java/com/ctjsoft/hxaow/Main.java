@@ -228,6 +228,14 @@ public class Main {
 				p.setDatabasePath(p.getDatabasePath() + "/年度库");
 				break;
 			}
+			if(p.getClientPath() != null && !properties.containsKey("domain.dll.path")){
+	        	if(console != null){
+	        		properties.put("domain.dll.path", console.readLine("请输入DLL客户端，服务器升级目录: "));
+	        		LOG.debug("domain.dll.path DLL升级目录:"+properties.getProperty("domain.dll.path"));
+	        	}else{
+	        		throw new RuntimeException("请检查配置文件，domain.dll.path 参数未配置。");
+	        	}
+			}
 			index++;
 		}
 		if(pmDbProject != null){
@@ -257,9 +265,9 @@ public class Main {
     		}else{
     			LOG.debug("发布工程服务端路径未指定，不进行服务端包发布");
     		}
-    		//客户端DLL包
+    		//客户端DLL包  
     		if(p.getClientPath() != null && !p.getClientPath().equals("")){
-    			Tools.copyFileFromDir(d+"/"+p.getContextName()+"/update", p.getInstall_path()+"/"+p.getClientPath());
+    			Tools.copyFileFromDir(properties.getProperty("domain.dll.path"), p.getInstall_path()+"/"+p.getClientPath());
     		}else{
     			LOG.debug("发布工程客户端路径未指定，不进行客户端包发布");
     		}
@@ -286,7 +294,15 @@ public class Main {
             	}
             }else{
             	throw new RuntimeException("未指定 参数[domain.path],请检查配置，或改为手动发布。");
-            }               
+            }   
+            //检查客户端DLL升级目录
+            String domainDllPath = properties.getProperty("domain.dll.path");
+            if(domainDllPath != null && domainDllPath.length()>0){
+        		File f = new File(domainDllPath);
+        		if(f == null || !f.isDirectory()){
+        			throw new RuntimeException("参数[domain.dll.path]指定目录："+domainDllPath+"不存在，请检查配置。");
+        		}
+            }
         }
         return domainDirs;
     }

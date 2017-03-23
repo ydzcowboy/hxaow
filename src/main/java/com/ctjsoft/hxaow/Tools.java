@@ -230,8 +230,7 @@ public class Tools {
 			Class.forName("oracle.jdbc.driver.OracleDriver");
 			con = DriverManager.getConnection(url, user, password);
 		} catch (Exception e) {
-			e.printStackTrace();
-			LOG.error("获取数据库连接失败："+e.getMessage());
+			throw new RuntimeException("获取数据库连接失败："+e.getMessage());
 		}
     	return con;
     }
