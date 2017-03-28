@@ -116,7 +116,7 @@ public class Main {
             addPmDB(console,verList,properties);
             //是否进行自动发布jar 包等文件
             boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
-            String[] domainDirs = getDomains(autoDeploy,properties);
+            String[] serverDomainDirs = getServerDomains(properties);
             //执行升级
             String user = (String)properties.get("flyway.user");
             String password = (String)properties.get("flyway.password");
@@ -166,7 +166,7 @@ public class Main {
                 if(isMigrate){
                     //客户端、服务端包升级
                     if(autoDeploy){
-                    	deployServer(p,domainDirs,properties);
+                    	deployServer(p,serverDomainDirs,properties);
                     }
                     //插入版本日志信息
                     insertGapVersion(p,properties);	
@@ -228,10 +228,18 @@ public class Main {
 				p.setDatabasePath(p.getDatabasePath() + "/年度库");
 				break;
 			}
-			if(p.getClientPath() != null && !properties.containsKey("domain.dll.path")){
+			if(p.getIsWeb() && p.getClientPath() != null && !properties.containsKey("domain.web.path")){
 	        	if(console != null){
-	        		properties.put("domain.dll.path", console.readLine("请输入DLL客户端，服务器升级目录: "));
-	        		LOG.debug("domain.dll.path DLL升级目录:"+properties.getProperty("domain.dll.path"));
+	        		properties.put("domain.web.path", console.readLine("请指定domain.web.path客户端包升级目录: "));
+	        		LOG.debug("domain.web.path 升级目录:"+properties.getProperty("domain.web.path"));
+	        	}else{
+	        		throw new RuntimeException("请检查配置文件，domain.web.path 参数未配置。");
+	        	}
+			}
+			if(!p.getIsWeb() && p.getClientPath() != null && !properties.containsKey("domain.dll.path")){
+	        	if(console != null){
+	        		properties.put("domain.dll.path", console.readLine("请指定domain.dll.path客户端包升级目录: "));
+	        		LOG.debug("domain.dll.path 升级目录:"+properties.getProperty("domain.dll.path"));
 	        	}else{
 	        		throw new RuntimeException("请检查配置文件，domain.dll.path 参数未配置。");
 	        	}
@@ -249,29 +257,39 @@ public class Main {
      * @param domainDirs
      * @param properties
      */
-    private static void deployServer(Project p,String[] domainDirs,Properties properties){
+    private static void deployServer(Project p,String[] serverDomainDirs,Properties properties){
     	if(p.getName().equals("PM_DB"))
     		return;
         //升级版本
         String jdkVer = properties.getProperty("server.jdk") == null ? "jdk1.6" : properties.getProperty("server.jdk");
-    	for(String d : domainDirs){
+    	for(String d : serverDomainDirs){
     		//执行清理文件
-    		if(p.getCleanup() != null && p.getCleanup().size() > 0){
-    			cleanUpFile(p,d);
+    		if(p.getCleanupServer() != null && p.getCleanupServer().size() > 0){
+    			cleanUpFile(p.getCleanupServer(),d);
     		}
     		//后台服务包
     		if(p.getServerPath() != null && !p.getServerPath().equals("")){
     			Tools.copyFileFromDir(d, p.getInstall_path()+"/"+p.getServerPath()+"/"+jdkVer);
     		}else{
-    			LOG.debug("发布工程服务端路径未指定，不进行服务端包发布");
-    		}
-    		//客户端DLL包  
-    		if(p.getClientPath() != null && !p.getClientPath().equals("")){
-    			Tools.copyFileFromDir(properties.getProperty("domain.dll.path"), p.getInstall_path()+"/"+p.getClientPath());
-    		}else{
-    			LOG.debug("发布工程客户端路径未指定，不进行客户端包发布");
+    			LOG.debug("发布工程服务端路径serverPath未指定，不进行服务端包发布。请检查工程文件。");
     		}
     	}
+        String[] clientDomainDirs = getClientDomains(p,properties);
+    	//发布客户端
+        if(clientDomainDirs != null){
+        	for(String d : clientDomainDirs){
+        		//执行清理文件
+        		if(p.getCleanupClient() != null && p.getCleanupClient().size() > 0){
+        			cleanUpFile(p.getCleanupClient(),d);
+        		}
+        		//客户端包
+        		if(p.getClientPath() != null && !p.getClientPath().equals("")){
+        			Tools.copyFileFromDir(d, p.getInstall_path()+"/"+p.getClientPath());
+        		}else{
+        			LOG.debug("发布工程客户端路径clientPath未指定，不进行客户端包发布。请检查工程文件。");
+        		}    	
+        	}
+        }
     }
     /**
      * 获取发布服务路径
@@ -279,30 +297,52 @@ public class Main {
      * @param properties
      * @return
      */
-    private static String[] getDomains(boolean autoDeploy,Properties properties){
+    private static String[] getServerDomains(Properties properties){
     	String[] domainDirs = null;
-        if(autoDeploy){
-            //获取domain 目录，即工程发布根目录
-            String domainPath = properties.getProperty("domain.path");
+        //获取domain 目录，即工程发布根目录
+        String domainPath = properties.getProperty("domain.path");
+        if(domainPath != null && domainPath.length()>0){
+        	domainDirs = StringUtils.tokenizeToStringArray(domainPath, ";");
+        	for(String p : domainDirs){
+        		File f = new File(p);
+        		if(f == null || !f.isDirectory()){
+        			throw new RuntimeException("参数[domain.path]指定目录："+p+"不存在，请检查配置。");
+        		}
+        	}
+        }else{
+        	throw new RuntimeException("未指定 参数[domain.path],请检查配置，或改为手动发布。");
+        }
+        return domainDirs;
+    }
+    
+    /**
+     * 获取发布客户端路径
+     * @param autoDeploy
+     * @param properties
+     * @return
+     */
+    private static String[] getClientDomains(Project pro,Properties properties){
+    	String[] domainDirs = null;
+        //获取domain 目录，即工程发布根目录
+    	String domainKey = "";
+    	if(pro.getIsWeb()){
+    		domainKey = "domain.web.path";
+    	}else{
+    		domainKey = "domain.dll.path";
+    	}
+        String domainPath = properties.getProperty(domainKey);
+        if(pro.getClientPath() != null && !pro.getClientPath().equals("")){
             if(domainPath != null && domainPath.length()>0){
             	domainDirs = StringUtils.tokenizeToStringArray(domainPath, ";");
             	for(String p : domainDirs){
             		File f = new File(p);
             		if(f == null || !f.isDirectory()){
-            			throw new RuntimeException("参数[domain.path]指定目录："+p+"不存在，请检查配置。");
+            			throw new RuntimeException("参数["+domainKey+"]指定目录："+p+"不存在，请检查配置。");
             		}
             	}
             }else{
-            	throw new RuntimeException("未指定 参数[domain.path],请检查配置，或改为手动发布。");
-            }   
-            //检查客户端DLL升级目录
-            String domainDllPath = properties.getProperty("domain.dll.path");
-            if(domainDllPath != null && domainDllPath.length()>0){
-        		File f = new File(domainDllPath);
-        		if(f == null || !f.isDirectory()){
-        			throw new RuntimeException("参数[domain.dll.path]指定目录："+domainDllPath+"不存在，请检查配置。");
-        		}
-            }
+            	throw new RuntimeException("未指定 参数["+domainKey+"],请检查配置，或改为手动发布。");
+            } 
         }
         return domainDirs;
     }
@@ -403,16 +443,18 @@ public class Main {
         	List<String> rgList = p.getSpecialRegion();
         	Map<String,String> rgMap = new HashMap<String,String>();
         	if(rgList != null && rgList.size() > 0){
-        		LOG.info("工程：["+p.getName()+"]存在个性化脚本，请选择：");
+        		LOG.info("工程：["+p.getName()+"]存在以下个性化脚本，请选择：");
+        		rgList.add(0, "0-无个性化脚本");
         		for(String rg : rgList){
         			LOG.info("===>"+rg);
         			String[] rgArr = rg.split("-");
         			rgMap.put(rgArr[0], rgArr[1]);
         		}
+        		rgMap.put("0", "无个性化脚本");
         		String inputChar = "";
         		if(console != null){    		
             		while(!rgMap.containsKey(inputChar)){
-            			inputChar = console.readLine("请选择您对应地区序号：");
+            			inputChar = console.readLine("请选择您对应地区个性化脚本序号：（选择个性化脚本，产品化脚本默认执行）");
             		}
             		LOG.debug("选项："+inputChar);
         		}
@@ -526,12 +568,12 @@ public class Main {
     }
     /**
      * 執行文件清理
-     * @param p  工程配置
+     * @param cleanUpList  清理文件列表
      * @param d  发布路径 
      */
-    private static void cleanUpFile(Project p,String d){
-		for(String cl : p.getCleanup()){
-			String abPath = d+"/"+p.getContextName()+"/"+cl;
+    private static void cleanUpFile(List<String> cleanUpList,String d){  	
+		for(String cl : cleanUpList){
+			String abPath = d+"/"+cl;
 			File f = new File(abPath);
 			if(f.isFile() || f.isDirectory()){
 				f.delete();
@@ -571,7 +613,7 @@ public class Main {
 						LOG.error("通配符使用錯誤："+cl);
 					}
 				}else{
-					LOG.debug("未找到需要清理的文件："+d+"/"+p.getContextName()+"/"+cl);
+					LOG.debug("未找到需要清理的文件："+d+"/"+cl);
 				}
 			}
 			
