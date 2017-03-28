@@ -23,8 +23,10 @@ public class Project implements Cloneable{
 	String versionTable;
 	//基线版本
 	String baseversion;
-	//需要清除的文件
-	List<String> cleanup;
+	//需要清除服务端的文件
+	List<String> cleanupServer;
+	//需要清除客户端的文件
+	List<String> cleanupClient;
 	//需要替换的服务器包路径
 	String serverPath;
 	//客户端包路径
@@ -40,16 +42,22 @@ public class Project implements Cloneable{
 	
 	//工程安装目录
 	String install_path = "";
-	//工程部署名
-	String contextName = "";
 	//当前版本号
 	String currentVerNo = "";
 	//是否全量升级
 	boolean isFull = false;
 	//是否涉及常态库，默认为false,如果涉及，脚本结果需要分[常态库]、[年度库] 进行存放
 	boolean isPmDb = false;
+	//是否为web版本
+	boolean isWeb = false;
 	
-
+	public boolean getIsWeb(){
+		return isWeb;
+	}
+	public void setIsWeb(boolean isWeb){
+		this.isWeb = isWeb;
+	}
+	
 	public boolean getIsPmDb() {
 		return isPmDb;
 	}
@@ -80,14 +88,6 @@ public class Project implements Cloneable{
 
 	public void setCurrentVerNo(String currentVerNo) {
 		this.currentVerNo = currentVerNo;
-	}
-
-	public String getContextName() {
-		return contextName;
-	}
-
-	public void setContextName(String contextName) {
-		this.contextName = contextName;
 	}
 
 	public String getInstall_path() {
@@ -148,12 +148,23 @@ public class Project implements Cloneable{
 	public void setBaseversion(String baseversion) {
 		this.baseversion = baseversion;
 	}
-	public List<String> getCleanup() {
-		return cleanup;
+
+	public List<String> getCleanupClient() {
+		return cleanupClient;
 	}
-	public void setCleanup(List<String> cleanup) {
-		this.cleanup = cleanup;
+
+	public void setCleanupClient(List<String> cleanupClient) {
+		this.cleanupClient = cleanupClient;
 	}
+
+	public List<String> getCleanupServer() {
+		return cleanupServer;
+	}
+
+	public void setCleanupServer(List<String> cleanupServer) {
+		this.cleanupServer = cleanupServer;
+	}
+
 	public String getServerPath() {
 		return serverPath;
 	}
