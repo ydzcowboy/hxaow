@@ -575,9 +575,11 @@ public class Main {
 		for(String cl : cleanUpList){
 			String abPath = d+"/"+cl;
 			File f = new File(abPath);
-			if(f.isFile() || f.isDirectory()){
+			if(f.isFile()){
 				f.delete();
 				LOG.info("清理文件："+f.getAbsolutePath());
+			}else if(f.isDirectory() && cl.indexOf("*")<0){
+				LOG.error("清理文件夹："+abPath+" 失败，如清理此文件夹及其下所有文件，请使用统配符/**");
 			}else{
 				if(cl.indexOf("*")>-1){//判断是否含统配符
 					String[] clArr = abPath.split("/");
@@ -596,7 +598,10 @@ public class Main {
 						continue;
 					}
 					String[] temp = fileName.split("\\*");
-					if(temp.length == 0){
+					if(fileName.equals("**")){//文件夹
+						Tools.deleteDir(parentFile);
+						LOG.info("清理文件夹："+parentFile.getAbsolutePath());
+					}else if(temp.length == 0){
 						parentFile.delete();
 						LOG.info("清理文件："+parentFile.getAbsolutePath());
 					}else if(temp.length == 2){
@@ -610,7 +615,7 @@ public class Main {
 							}
 						}
 					}else{
-						LOG.error("通配符使用錯誤："+cl);
+						LOG.error(cl+"通配符使用错误，仅支持：单通配符如：grp.budget.invest*.jar 单文件的匹配，或双通配符 webapp/grp/budget/** 文件夹的匹配。");
 					}
 				}else{
 					LOG.debug("未找到需要清理的文件："+d+"/"+cl);

@@ -14,7 +14,7 @@
     <cleanupServer>
         <string>realware/WEB-INF/lib/grp.budget.invest*.jar</string>
     </cleanupServer>
-    <!--需要清除的文件以配置文件domain.client.path指定的客户端路劲作为根目录-->
+    <!--需要清除的文件以配置文件domain.dll.path指定的客户端路劲作为根目录-->
     <cleanupClient>
         <string>grp.budget.investment.dll</string>
     </cleanupClient>
