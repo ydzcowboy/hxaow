@@ -58,8 +58,6 @@ public class Main {
     static void initLogging(Level level) {
         LogFactory.setFallbackLogCreator(new ConsoleLogCreator(level));
         LOG = LogFactory.getLog(Main.class);
-        
-        
     }
 
     /**
