@@ -262,17 +262,19 @@ public class Main {
     		return;
         //升级版本
         String jdkVer = properties.getProperty("server.jdk") == null ? "jdk1.6" : properties.getProperty("server.jdk");
-    	for(String d : serverDomainDirs){
-    		//执行清理文件
-    		if(p.getCleanupServer() != null && p.getCleanupServer().size() > 0){
-    			cleanUpFile(p.getCleanupServer(),d);
-    		}
-    		//后台服务包
-    		if(p.getServerPath() != null && !p.getServerPath().equals("")){
-    			Tools.copyFileFromDir(d, p.getInstall_path()+"/"+p.getServerPath()+"/"+jdkVer);
-    		}else{
-    			LOG.debug("发布工程服务端路径serverPath未指定，不进行服务端包发布。请检查工程文件。");
-    		}
+    	if(serverDomainDirs != null){
+            for(String d : serverDomainDirs){
+        		//执行清理文件
+        		if(p.getCleanupServer() != null && p.getCleanupServer().size() > 0){
+        			cleanUpFile(p.getCleanupServer(),d);
+        		}
+        		//后台服务包
+        		if(p.getServerPath() != null && !p.getServerPath().equals("")){
+        			Tools.copyFileFromDir(d, p.getInstall_path()+"/"+p.getServerPath()+"/"+jdkVer);
+        		}else{
+        			LOG.debug("发布工程服务端路径serverPath未指定，不进行服务端包发布。请检查工程文件。");
+        		}
+        	}
     	}
         String[] clientDomainDirs = getClientDomains(p,properties);
     	//发布客户端
