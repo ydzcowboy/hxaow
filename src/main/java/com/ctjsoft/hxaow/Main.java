@@ -45,7 +45,7 @@ import com.ctjsoft.hxaow.bo.VerInfo;
 public class Main {
     private static Log LOG;
 
-    /**
+    /** lqz
      * The property name for the directory containing a list of jars to load on the classpath.
      */
     private static final String PROPERTY_JAR_DIRS = "flyway.jarDirs";
@@ -58,6 +58,7 @@ public class Main {
     static void initLogging(Level level) {
         LogFactory.setFallbackLogCreator(new ConsoleLogCreator(level));
         LOG = LogFactory.getLog(Main.class);
+        
     }
 
     /**
