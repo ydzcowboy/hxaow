@@ -38,7 +38,7 @@ import com.ctjsoft.hxaow.bo.VerInfo;
 
 /**
  * Main class and central entry point of the hxaow command-line tool.
- * 韩信 command 基于 flyway 4.0.3
+ * 韩信 command 基于 flyway 4.0.3  by lqz001
  * @author ydzcowboy
  *
  */
