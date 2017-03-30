@@ -199,9 +199,8 @@ public class Main {
 	 * @param verList
 	 */
 	private static void addPmDB(Console console,List<Project> verList,Properties properties) {
-		Project pmDbProject = null;
-		int index = 0;
-		for (Project p : verList) {
+		for (int i = 0;i < verList.size();i++) {
+			Project p = verList.get(i);
 			if (p.getIsPmDb()) {
 		        if (!properties.containsKey("pm_db.user")) {
 		        	if(console != null){
@@ -220,13 +219,14 @@ public class Main {
 		        	}
 		            
 		        }
-				pmDbProject = p.clone();
+		        Project pmDbProject = p.clone();
 				pmDbProject.setName("PM_DB");
 				pmDbProject.setVersionTable("gap_version_pmdb");
 				pmDbProject.setDatabasePath(pmDbProject.getDatabasePath()
 						+ "/常态库");
 				p.setDatabasePath(p.getDatabasePath() + "/年度库");
-				break;
+				verList.add(i, pmDbProject);
+				i++;
 			}
 			if(p.getIsWeb() && p.getClientPath() != null && !properties.containsKey("domain.web.path")){
 	        	if(console != null){
@@ -244,10 +244,6 @@ public class Main {
 	        		throw new RuntimeException("请检查配置文件，domain.dll.path 参数未配置。");
 	        	}
 			}
-			index++;
-		}
-		if(pmDbProject != null){
-			verList.add(index, pmDbProject);
 		}
 	}
 	
