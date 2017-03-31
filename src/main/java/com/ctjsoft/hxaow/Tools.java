@@ -188,13 +188,15 @@ public class Tools {
         
         LOG.info("复制文件:" + fromFile.getName() + "到"  
                 + toFile.getAbsolutePath());  
+        int byteread = 0; // 读取的字节数  
         try {  
             InputStream is = new FileInputStream(fromFile);// 创建文件输入流  
             FileOutputStream fos = new FileOutputStream(toFile);// 文件输出流  
-            byte[] buffer = new byte[1024];// 字节数组  
-            while (is.read(buffer) != -1) {// 将文件内容写到文件中  
-                fos.write(buffer);  
-            }  
+            byte[] buffer = new byte[1024];// 字节数组              
+            while ((byteread = is.read(buffer)) != -1) {  // 将文件内容写到文件中  
+            	fos.write(buffer, 0, byteread);  
+            }   
+            fos.flush();
             is.close();// 输入流关闭  
             fos.close();// 输出流关闭  
         } catch (FileNotFoundException e) {// 捕获文件不存在异常  
