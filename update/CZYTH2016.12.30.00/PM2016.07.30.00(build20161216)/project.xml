@@ -22,9 +22,9 @@
     </cleanupClient>
     
     <!-- 升级版本文件夹路径指定 -->
-    <serverPath>服务器端</serverPath>
-    <clientPath>客户端</clientPath>
-    <databasePath>脚本</databasePath>
+    <serverPath>server</serverPath>
+    <clientPath>client</clientPath>
+    <databasePath>database</databasePath>
     
     <!--是否涉及常态库，默认为false,如果涉及，脚本结果需要分[常态库]、[年度库] 进行存放-->
     <isPmDb>true</isPmDb>
