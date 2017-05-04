@@ -114,6 +114,11 @@ public class Main {
             }          
             //常态库特殊处理
             addPmDB(console,verList,properties);
+            //设置同义词参数
+            if(isMigrate)
+            {
+            	 setSynName(verList,properties);
+            }      
             //是否进行自动发布jar 包等文件
             boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
             String[] serverDomainDirs = getServerDomains(properties);
@@ -192,6 +197,45 @@ public class Main {
             System.exit(1);
         }
     }
+	/**
+	 * 升级时设置 年度库对常态库同义词用户参数
+	 * @param verList
+	 * @param properties
+	 */
+	private static void setSynName(List<Project> verList,Properties properties){
+		boolean isPmDb = false;
+		for(Project p : verList)
+		{
+			if(p.getIsPmDb())
+			{
+				isPmDb = true;
+				break;
+			}
+		}
+		if(isPmDb){
+	    	Connection con = Tools.getJdbcConnection(properties.getProperty("flyway.url"), properties.getProperty("flyway.user"), properties.getProperty("flyway.password"));
+	    	if(con != null){
+	    	 String pmDbName = properties.getProperty("pm_db.user");
+	   		 StringBuffer updateSql = new StringBuffer("update gap_parameter set default_value='");
+	   		 updateSql.append(pmDbName).append("' where para_key='SYNINFO_USERNAME'");
+	   		 
+	   		 Statement st = null;
+	   		 try {
+					st = con.createStatement();
+					st.execute(updateSql.toString());
+				} catch (SQLException e) {
+					throw new RuntimeException("更新参数SYNINFO_USERNAME出错："+e.getMessage());
+				}finally{
+					try {
+						st.close();
+						con.close();
+					} catch (SQLException e) {
+						e.printStackTrace();
+					}
+				}
+	    	}
+		}
+	}
 
 	/**
 	 * 对项目库进行特殊处理，添加常态库
@@ -504,8 +548,7 @@ public class Main {
 						info.put("version_no", rs.getString("version_no"));
 						info.put("update_date", rs.getDate("update_date"));	
 						infoLs.add(info);
-					}		
-					
+					}				
 					long sysId = rs.getLong("sys_id");
 					String sysCode = rs.getString("sys_code");
 					String versionNo = rs.getString("version_no");
