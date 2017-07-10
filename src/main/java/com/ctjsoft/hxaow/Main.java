@@ -110,7 +110,7 @@ public class Main {
             if(isMigrate){
                 checkVersionNo(console,verList);
                 //个性化脚本检查
-                specialSqlCheck(console,verList);             
+                specialSqlCheck(console,properties,verList);             
             }          
             //常态库特殊处理
             addPmDB(console,verList,properties);
@@ -480,7 +480,9 @@ public class Main {
      * @param console
      * @param verList 待升级工程
      */
-    private static void specialSqlCheck(Console console,List<Project> verList){
+    private static void specialSqlCheck(Console console,Properties properties,List<Project> verList){
+    	//个性化区划
+    	String curRegion = properties.getProperty("curRegion");
         for(Project p : verList){
         	List<String> rgList = p.getSpecialRegion();
         	Map<String,String> rgMap = new HashMap<String,String>();
@@ -494,11 +496,21 @@ public class Main {
         		}
         		rgMap.put("0", "无个性化脚本");
         		String inputChar = "";
-        		if(console != null){    		
+        		if(console != null && (curRegion == null || curRegion.trim().equals(""))){
             		while(!rgMap.containsKey(inputChar)){
             			inputChar = console.readLine("请选择您对应地区个性化脚本序号：（选择个性化脚本，产品化脚本默认执行）");
             		}
             		LOG.debug("选项："+inputChar);
+        		}
+        		if(curRegion != null && !curRegion.trim().equals("")){
+        			inputChar = curRegion;
+        		    String msg = "工程：["+p.getName()+"]使用默认区划脚本"+curRegion;
+        		    if(rgMap.get(inputChar) != null){
+        		    	msg = msg+" "+rgMap.get(inputChar);
+        		    }else{
+        		    	msg = msg+" 未找到，默认仅执行产品化脚本。";
+        		    }
+        			LOG.info(msg);
         		}
         		if(!inputChar.equals("0")){
         			if(rgMap.get(inputChar) != null){
@@ -506,6 +518,7 @@ public class Main {
         			}
         		}	  		
         	}
+    	
         }
     }
     /**
