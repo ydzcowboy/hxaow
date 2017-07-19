@@ -264,8 +264,11 @@ public class Main {
 		            
 		        }
 		        Project pmDbProject = p.clone();
-				pmDbProject.setName("PM_DB");
-				pmDbProject.setVersionTable("gap_version_pmdb");
+		        //针对项目库做特殊处理，由于之前项目表已存在,其他涉及常态库表，使用与年度库一样的表
+		        if(pmDbProject.getName().equalsIgnoreCase("PM")){
+		        	pmDbProject.setVersionTable("gap_version_pmdb");
+		        }
+				pmDbProject.setName("PM_DB");			
 				pmDbProject.setDatabasePath(pmDbProject.getDatabasePath()
 						+ "/常态库");
 				p.setDatabasePath(p.getDatabasePath() + "/年度库");
