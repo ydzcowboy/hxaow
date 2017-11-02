@@ -200,6 +200,17 @@ public class Project implements Cloneable{
     	}
     	return errMsg;
 	}
+	
+	public String checkVersionEqual(){
+		String errMsg = "";
+		if(version != null && !version.isEmpty()){
+    		String baseVer = this.getName()+version;
+    		if(this.getCurrentVerNo() == null || !baseVer.equals(this.getCurrentVerNo())){
+    			errMsg = "工程："+this.getName()+"版本依赖异常，当前数据库版本【"+this.getCurrentVerNo()+"】与脚本版本【"+baseVer+"】不匹配，请先升级到此版本。";
+    		}
+    	}
+    	return errMsg;
+	}
 	@Override
     public Project clone(){  
         Project sc = null;  

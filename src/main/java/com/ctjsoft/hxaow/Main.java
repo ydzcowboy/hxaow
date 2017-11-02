@@ -98,11 +98,16 @@ public class Main {
             List<Project> verList = getUpdateVerList(suitPro,updateList);
             Console console = System.console();
             boolean isMigrate = false;
+            boolean isInit = false;//是否初始化操作
             for(String o : operations){
             	if("migrate".equals(o)){
             	 isMigrate = true;
             	 break;
             	}
+            	if("init".equals(o)){
+            		isInit = true;
+               	 break;
+               	}
             }
             //版本依赖检查
             setLastVersion(verList,properties,operations);
@@ -111,7 +116,12 @@ public class Main {
                 checkVersionNo(console,verList);
                 //个性化脚本检查
                 specialSqlCheck(console,properties,verList);             
-            }          
+            }       
+            if(isInit){
+            	//初始化时，启用站位符，用于年度替换
+            	properties.put("flyway.placeholderReplacement", true);
+            	checkVersionNoForInit(console,properties,verList);
+            }
             //常态库特殊处理
             addPmDB(console,verList,properties);
             //设置同义词参数
@@ -149,16 +159,20 @@ public class Main {
             	}
             	StringBuffer filesystem = new StringBuffer("classpath:db.migration");
             	
-            	if(p.isFull()){//全量脚本
-            		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/full");
+            	if(isInit){
+            		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/cleardata");
+            	}else{
+            		if(p.isFull()){//全量脚本
+                		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/full");
+                	}
+                	//产品化增量脚本
+                	filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/update");
+                	//个性化脚本
+                	if(p.getCurRegion() != null && !p.getCurRegion().isEmpty()){
+                		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/").append(p.getCurRegion());
+                	}
             	}
-            	//产品化增量脚本
-            	filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/update");
-            	//个性化脚本
-            	if(p.getCurRegion() != null && !p.getCurRegion().isEmpty()){
-            		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/").append(p.getCurRegion());
-            	}
-            	
+
             	properties.put("flyway.locations",filesystem.toString());
                 Flyway flyway = new Flyway();
                 filterProperties(properties);
@@ -176,12 +190,18 @@ public class Main {
                     //插入版本日志信息
                     insertGapVersion(p,properties);	
                 }
+                if(isInit){
+                	initGapVersion(p,properties);
+                }
             	LOG.info("版本"+p.getName()+p.getVersion()+"操作成功");
             }
             if(suitPro != null){
             	if(isMigrate){
             		insertGapVersion(suitPro,properties);
             	}
+                if(isInit){
+                	initGapVersion(suitPro,properties);
+                }
             	LOG.info("套件"+suitPro.getName()+suitPro.getVersion()+"操作成功");
             }
         } catch (Exception e) {
@@ -427,6 +447,40 @@ public class Main {
         }
     }
     
+    /**
+     * 检查版本号，判断是否可以进行初始化
+     * @param console
+     * @param verList
+     */
+    private static void checkVersionNoForInit(Console console,Properties properties,List<Project> verList){
+        List<String> errMsgLs = new ArrayList<String>();
+        for(Project p : verList){
+        	String errMsg = p.checkVersionEqual();
+        	if(errMsg.length() > 0){
+        		errMsgLs.add(errMsg);
+        	}
+        }
+        if(errMsgLs.size() > 0){
+        	for(String s : errMsgLs){
+        		LOG.error(s);
+        	}
+        	System.exit(1);
+        }else{
+    		LOG.warn("您正在对数据库["+properties.getProperty("flyway.user")+","+properties.getProperty("pm_db.user")+"]，进行["+verList.size()+"]个版本的年度初始化操作，数据将被清除不可恢复，请仔细核对数据库信息,是否继续初始化操作？（Y/N）");
+    		if(console != null){
+        		String inputChar = "";
+        		while(!inputChar.equalsIgnoreCase("Y") && !inputChar.equalsIgnoreCase("N") ){
+        			inputChar = console.readLine("Y 继续 ，N 退出");
+        		}
+        		LOG.debug("选项："+inputChar);
+        		if(inputChar.equalsIgnoreCase("N")){
+        			LOG.warn("本次初始化被被取消");
+        			System.exit(1);
+        		}   
+    		}
+        }
+    }
+    
     private static Project getSuitProject(List<Project> projectList,List<Project> updateList){
     	Project suitPro = null;
         for(Project p : projectList){
@@ -623,6 +677,39 @@ public class Main {
     		LOG.debug("更新版本："+p.getName()+p.getVersion());
     	}
     }
+    
+    /**
+     * 初始化版本信息
+     * @param p
+     * @param properties
+     */
+    private static void initGapVersion(Project p,Properties properties){
+    	if(p.getName().equals("PM_DB"))
+    		return;
+    	Connection con = Tools.getJdbcConnection(properties.getProperty("flyway.url"), properties.getProperty("flyway.user"), properties.getProperty("flyway.password"));
+    	if(con != null){
+    		 String updateSql = "delete gap_version where sys_id="+p.getSysId()+" and sys_code='"+p.getName()+"' and is_now=0";
+    		 String insertSql = "insert into gap_version(sys_id,sys_code,version_no,update_date,is_now) values ("+p.getSysId()+",'"+p.getName()+"','"+p.getName()+p.getVersion()+"-init',sysdate,0)";
+    		 Statement st = null;
+    		 try {
+				st = con.createStatement();
+				st.addBatch(updateSql);
+				st.addBatch(insertSql);
+				st.executeBatch();
+			} catch (SQLException e) {
+				LOG.error("执行版本插入异常："+e.getMessage());
+				e.printStackTrace();
+			}finally{
+				try {
+					st.close();
+					con.close();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			}
+    		LOG.debug("写入初始化版本："+p.getName()+p.getVersion()+"-init");
+    	}
+    }
     /**
      * 執行文件清理
      * @param cleanUpList  清理文件列表
@@ -714,8 +801,7 @@ public class Main {
         } else if ("repair".equals(operation)) {
             flyway.repair();
         } else if("init".equals(operation)){
-        	//TODO 进行年度初始化工作，初始化年度，清理业务数据
-        	LOG.warn("尚未实现，敬请期待。。。。");
+        	 flyway.migrate();
         }else {
             LOG.error("Invalid operation: " + operation);
             printUsage();
