@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -95,7 +96,7 @@ public class Main {
             List<Project> updateList = new ArrayList<Project>();
             Project suitPro = getSuitProject(projectList,updateList);
             //需要升级的版本
-            List<Project> verList = getUpdateVerList(suitPro,updateList);
+            List<Project> oriVerList = getUpdateVerList(suitPro,updateList);
             Console console = System.console();
             boolean isMigrate = false;
             boolean isInit = false;//是否初始化操作
@@ -109,100 +110,149 @@ public class Main {
                	 break;
                	}
             }
-            //版本依赖检查
-            setLastVersion(verList,properties,operations);
-            
-            if(isMigrate){
-                checkVersionNo(console,verList);
-                //个性化脚本检查
-                specialSqlCheck(console,properties,verList);             
-            }       
-            if(isInit){
-            	//初始化时，启用站位符，用于年度替换
-            	properties.put("flyway.placeholderReplacement", true);
-            	checkVersionNoForInit(console,properties,verList);
-            }
-            //常态库特殊处理
-            addPmDB(console,verList,properties);
-            //设置同义词参数
-            if(isMigrate)
-            {
-            	 setSynName(verList,properties);
-            }      
+            //初始化多数据库
+            Map<String,Map<String,String>> dbMap = initDBConfig(properties);
+        	Map<String,String> defaultMap = dbMap.get("default");//单数据源写法，通用配置
+        	int dbcount = 0;
+        	for(String yearKey : dbMap.keySet()){//统计真实的数据连接个数
+        		if(dbMap.size() > 1 && yearKey.equals("default"))
+        			continue;
+        		dbcount++;
+        	}
+        	if(dbcount > 1){
+        		if(isInit)
+        			throw new RuntimeException("发现配置多个数据库，出于安全考虑，初始化操作暂不支持");
+        		LOG.info("发现多个数据库同时进行操作....");
+        	}
             //是否进行自动发布jar 包等文件
             boolean autoDeploy = properties.getProperty("flyway.autoDeploy") == null ? true : Boolean.parseBoolean(properties.getProperty("flyway.autoDeploy").toString());
             String[] serverDomainDirs = getServerDomains(properties);
-            //执行升级
-            String user = (String)properties.get("flyway.user");
-            String password = (String)properties.get("flyway.password");
-            if(suitPro != null){
-            	LOG.info("套件"+suitPro.getName()+suitPro.getVersion()+"操作开始");
-            }
-            for(Project p : verList){
-            	LOG.info("版本"+p.getName()+p.getVersion()+"操作开始");
-            	String verTable = p.getVersionTable();
-            	if(verTable == null || verTable.length() ==0){
-            		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定versionTable,请检查。");
+            
+            for(String yearKey : dbMap.keySet()){
+            	if(dbMap.size() > 1 && yearKey.equals("default")){//多数据源时，忽略default
+            		continue;
             	}
-            	String databasePath = p.getDatabasePath();
-            	if(databasePath == null ||databasePath.length() ==0){
-            		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定databasePath,请检查。");
-            	}   	
-            	properties.put("flyway.table", verTable);
-            	//常态库特殊处理，需要更换数据库
-            	if("PM_DB".equals(p.getName())){
-            		properties.put("flyway.user", properties.get("pm_db.user"));
-            		properties.put("flyway.password", properties.get("pm_db.password"));
-            	}else{
-               		properties.put("flyway.user", user);
-            		properties.put("flyway.password", password);
+            	Map<String,String> dbInfoMap = dbMap.get(yearKey);
+            	String flywayUrl = dbInfoMap.get("flyway.url");
+            	String flywayUser = dbInfoMap.get("flyway.user");
+            	String flywayPassword = dbInfoMap.get("flyway.password");
+            	String pmDbUser = dbInfoMap.get("pm_db.user");
+            	String pmDbPassword = dbInfoMap.get("pm_db.password");
+            	//未找到，去通用配置去找
+            	if(defaultMap != null){
+                	if(flywayUrl == null)
+                		flywayUrl = defaultMap.get("flyway.url");
+                	if(flywayPassword == null)
+                		flywayPassword = defaultMap.get("flyway.password");
+                	if(pmDbUser == null)
+                		pmDbUser = defaultMap.get("pm_db.user");
+                	if(pmDbPassword == null)
+                		pmDbPassword = defaultMap.get("pm_db.password");
             	}
-            	StringBuffer filesystem = new StringBuffer("classpath:db.migration");
-            	
-            	if(isInit){
-            		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/cleardata");
-            	}else{
-            		if(p.isFull()){//全量脚本
-                		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/full");
-                	}
-                	//产品化增量脚本
-                	filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/update");
-                	//个性化脚本
-                	if(p.getCurRegion() != null && !p.getCurRegion().isEmpty()){
-                		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/").append(p.getCurRegion());
-                	}
-            	}
-
-            	properties.put("flyway.locations",filesystem.toString());
-                Flyway flyway = new Flyway();
-                filterProperties(properties);
-                flyway.configure(properties);
-                //执行数据库操作
-                for (String operation : operations) {
-                    executeOperation(flyway, operation);
+            	LOG.info("----------------开始对数据库["+flywayUser+"]进行升级操作.....");
+            	properties.setProperty("flyway.url", flywayUrl);
+            	properties.setProperty("flyway.user", flywayUser);
+            	properties.setProperty("flyway.password", flywayPassword);
+            	properties.setProperty("pm_db.user", pmDbUser);
+            	properties.setProperty("pm_db.password", pmDbPassword);           	
+                //克隆一份待升级工程
+                List<Project> verList = new ArrayList<Project>();
+                for(Project p : oriVerList){
+                	verList.add(p.clone());
                 }
-                LOG.info("版本["+p.getName()+p.getVersion()+"]数据库操作完成.");
+                //版本依赖检查
+                setLastVersion(verList,properties,operations);
                 if(isMigrate){
-                    //客户端、服务端包升级
-                    if(autoDeploy){
-                    	deployServer(p,serverDomainDirs,properties);
+                    checkVersionNo(console,verList);
+                    //个性化脚本检查
+                    specialSqlCheck(console,properties,verList);             
+                }     
+                if(isInit){
+                	//初始化时，启用站位符，用于年度替换
+                	properties.put("flyway.placeholderReplacement", true);
+                	checkVersionNoForInit(console,properties,verList);
+                }
+                //常态库特殊处理
+                addPmDB(console,verList,properties);
+                //设置同义词参数
+                if(isMigrate)
+                {
+                	 setSynName(verList,properties);
+                }
+                //执行升级
+                String user = (String)properties.get("flyway.user");
+                String password = (String)properties.get("flyway.password");
+                if(suitPro != null){
+                	LOG.info("套件"+suitPro.getName()+suitPro.getVersion()+"操作开始");
+                }
+                for(Project p : verList){
+                	LOG.info("版本"+p.getName()+p.getVersion()+"操作开始");
+                	String verTable = p.getVersionTable();
+                	if(verTable == null || verTable.length() ==0){
+                		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定versionTable,请检查。");
+                	}
+                	String databasePath = p.getDatabasePath();
+                	if(databasePath == null ||databasePath.length() ==0){
+                		throw new RuntimeException("版本["+p.getName()+p.getVersion()+"]project.xml 中未指定databasePath,请检查。");
+                	}   	
+                	properties.put("flyway.table", verTable);
+                	//常态库特殊处理，需要更换数据库
+                	if("PM_DB".equals(p.getName())){
+                		properties.put("flyway.user", properties.get("pm_db.user"));
+                		properties.put("flyway.password", properties.get("pm_db.password"));
+                	}else{
+                   		properties.put("flyway.user", user);
+                		properties.put("flyway.password", password);
+                	}
+                	StringBuffer filesystem = new StringBuffer("classpath:db.migration");
+                	
+                	if(isInit){
+                		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/cleardata");
+                	}else{
+                		if(p.isFull()){//全量脚本
+                    		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/full");
+                    	}
+                    	//产品化增量脚本
+                    	filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/update");
+                    	//个性化脚本
+                    	if(p.getCurRegion() != null && !p.getCurRegion().isEmpty()){
+                    		filesystem.append(",filesystem:").append(p.getInstall_path()).append("/").append(databasePath).append("/").append(p.getCurRegion());
+                    	}
+                	}
+
+                	properties.put("flyway.locations",filesystem.toString());
+                    Flyway flyway = new Flyway();
+                    filterProperties(properties);
+                    flyway.configure(properties);
+                    //执行数据库操作
+                    for (String operation : operations) {
+                        executeOperation(flyway, operation);
                     }
-                    //插入版本日志信息
-                    insertGapVersion(p,properties);	
+                    LOG.info("版本["+p.getName()+p.getVersion()+"]数据库操作完成.");
+                    if(isMigrate){
+                        //客户端、服务端包升级
+                        if(autoDeploy){
+                        	deployServer(p,serverDomainDirs,properties);
+                        }
+                        //插入版本日志信息
+                        insertGapVersion(p,properties);	
+                    }
+                    if(isInit){
+                    	initGapVersion(p,properties);
+                    }
+                	LOG.info("版本"+p.getName()+p.getVersion()+"操作成功");
                 }
-                if(isInit){
-                	initGapVersion(p,properties);
+                if(suitPro != null){
+                	if(isMigrate){
+                		insertGapVersion(suitPro,properties);
+                	}
+                    if(isInit){
+                    	initGapVersion(suitPro,properties);
+                    }
+                	LOG.info("套件"+suitPro.getName()+suitPro.getVersion()+"操作成功");
                 }
-            	LOG.info("版本"+p.getName()+p.getVersion()+"操作成功");
-            }
-            if(suitPro != null){
-            	if(isMigrate){
-            		insertGapVersion(suitPro,properties);
-            	}
-                if(isInit){
-                	initGapVersion(suitPro,properties);
-                }
-            	LOG.info("套件"+suitPro.getName()+suitPro.getVersion()+"操作成功");
+                autoDeploy = false;//多数据源模式下，仅发布一次文件
+                LOG.info("-----------------对数据库["+flywayUser+"]升级完成.....");
             }
         } catch (Exception e) {
             if (logLevel == Level.DEBUG) {
@@ -217,6 +267,53 @@ public class Main {
             System.exit(1);
         }
     }
+	/**
+	 * 根据数据库配置初始化，支持多数据库同时升级
+	 * @param properties
+	 * @return
+	 */
+	private static Map<String,Map<String,String>> initDBConfig(Properties properties){
+		Map<String,Map<String,String>> dataSources = new LinkedHashMap<String,Map<String,String>>();
+		//初始化
+		setDbInfo("flyway.url",properties,dataSources);
+		setDbInfo("flyway.user",properties,dataSources);
+		setDbInfo("flyway.password",properties,dataSources);
+		setDbInfo("pm_db.user",properties,dataSources);
+		setDbInfo("pm_db.password",properties,dataSources);
+		return dataSources;
+	}
+	/**
+	 * 组装数据库信息
+	 * @param key
+	 * @param dataSources
+	 */
+	private static void setDbInfo(String key,Properties properties,Map<String,Map<String,String>> dataSources){
+		//组装信息
+		String keyValue = properties.getProperty(key);
+		if(keyValue == null)
+			return;
+		Map<String,String> sourceMap = null;
+		String[] dbinfoArr = keyValue.split(";");
+		for(String dbinfoString : dbinfoArr){
+			String[] dbinfo = dbinfoString.split("#");
+			if(dbinfo.length > 1){//多数据源方式
+				sourceMap = dataSources.get(dbinfo[0]);
+				if(sourceMap == null){
+					sourceMap = new HashMap<String,String>();
+					dataSources.put(dbinfo[0], sourceMap);
+				}
+				sourceMap.put(key, dbinfo[1]);
+			}else{//单数据源方式
+				sourceMap = dataSources.get("default");
+				if(sourceMap == null){
+					sourceMap = new HashMap<String,String>();
+					dataSources.put("default", sourceMap);
+				}
+				sourceMap.put(key, dbinfo[0]);
+			}
+		}
+	}
+	
 	/**
 	 * 升级时设置 年度库对常态库同义词用户参数
 	 * @param verList
@@ -594,7 +691,6 @@ public class Main {
     			break;
     		}
     	}
-    	StringBuffer verInfo = new StringBuffer();
     	List<Map> infoLs = new ArrayList<Map>();
     	Connection con = Tools.getJdbcConnection(properties.getProperty("flyway.url"), properties.getProperty("flyway.user"), properties.getProperty("flyway.password"));
     	if(con != null){
